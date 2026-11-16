@@ -1,0 +1,243 @@
+// نموذج البيانات مصمّم لكل المراحل (الأسبوعي، الاستراتيجية، الأتمتة، الإشعارات)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL_UNPOOLED")
+}
+
+enum Status {
+  NOT_STARTED
+  IN_PROGRESS
+  DONE
+}
+
+enum KpiDirection {
+  UP
+  DOWN
+}
+
+enum CycleStatus {
+  ACTIVE
+  CLOSED
+}
+
+// إعدادات عامة (صف واحد id=1)
+model Settings {
+  id                 Int       @id @default(1)
+  weekStartDay       Int       @default(0) // 0 = الأحد
+  timezone           String    @default("Asia/Kuwait")
+  locale             String    @default("ar")
+  theme              String    @default("system") // system | light | dark
+  remindDaily        Boolean   @default(true)
+  remindPlanThursday Boolean   @default(true)
+  remindKpiFriday    Boolean   @default(true)
+  remindSummarySunday Boolean  @default(true)
+  lastAutomationDate DateTime? @db.Date // آخر يوم اشتغلت فيه الأتمتة (المرحلة 3)
+  updatedAt          DateTime  @updatedAt
+}
+
+// ===== الاستراتيجية =====
+model Cycle {
+  id        String      @id @default(cuid())
+  name      String
+  startDate DateTime    @db.Date
+  endDate   DateTime    @db.Date
+  status    CycleStatus @default(ACTIVE)
+  closedAt  DateTime?
+  snapshot  Json? // الأرقام النهائية لما تخلص الدورة
+  goals     Goal[]
+  createdAt DateTime    @default(now())
+}
+
+model Pillar {
+  id        String   @id @default(cuid())
+  name      String
+  color     String
+  order     Int      @default(0)
+  archived  Boolean  @default(false)
+  goals     Goal[]
+  createdAt DateTime @default(now())
+}
+
+model Goal {
+  id           String        @id @default(cuid())
+  cycleId      String
+  cycle        Cycle         @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  pillarId     String
+  pillar       Pillar        @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+  title        String
+  notes        String?
+  dueDate      DateTime?     @db.Date
+  weight       Int           @default(3) // 1..5
+  order        Int           @default(0)
+  archived     Boolean       @default(false)
+  copiedFromId String? // لما تنسخ أهداف دورة سابقة
+  // مؤشر القياس (اختياري)
+  kpiName      String?
+  kpiUnit      String?
+  kpiStart     Float?
+  kpiTarget    Float?
+  kpiDirection KpiDirection?
+  readings     KpiReading[]
+  supports     GoalSupport[] @relation("supporter")
+  supportedBy  GoalSupport[] @relation("supported")
+  planTasks    PlanTask[]
+  weeklyTasks  WeeklyTask[]
+  recurrences  Recurrence[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  @@index([cycleId])
+}
+
+model KpiReading {
+  id        String   @id @default(cuid())
+  goalId    String
+  goal      Goal     @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  weekStart DateTime @db.Date
+  value     Float
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@unique([goalId, weekStart])
+}
+
+// «بيدعم»: الهدف from بيدعم الهدف to
+model GoalSupport {
+  fromId String
+  from   Goal   @relation("supporter", fields: [fromId], references: [id], onDelete: Cascade)
+  toId   String
+  to     Goal   @relation("supported", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@id([fromId, toId])
+}
+
+// الخطة: مهمة ← مهام صغيرة ← خطوات
+model PlanTask {
+  id        String        @id @default(cuid())
+  goalId    String
+  goal      Goal          @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  title     String
+  order     Int           @default(0)
+  subtasks  PlanSubtask[]
+  createdAt DateTime      @default(now())
+}
+
+model PlanSubtask {
+  id          String       @id @default(cuid())
+  planTaskId  String
+  planTask    PlanTask     @relation(fields: [planTaskId], references: [id], onDelete: Cascade)
+  title       String
+  dueDate     DateTime?    @db.Date
+  status      Status       @default(NOT_STARTED) // إذا إلها خطوات بتنحسب منها
+  order       Int          @default(0)
+  steps       PlanStep[]
+  weeklyTasks WeeklyTask[]
+  createdAt   DateTime     @default(now())
+}
+
+model PlanStep {
+  id          String       @id @default(cuid())
+  subtaskId   String
+  subtask     PlanSubtask  @relation(fields: [subtaskId], references: [id], onDelete: Cascade)
+  title       String
+  dueDate     DateTime?    @db.Date
+  status      Status       @default(NOT_STARTED)
+  order       Int          @default(0)
+  weeklyTasks WeeklyTask[]
+  createdAt   DateTime     @default(now())
+}
+
+// ===== التقرير الأسبوعي =====
+model WeeklyTask {
+  id            String           @id @default(cuid())
+  weekStart     DateTime         @db.Date
+  title         String
+  goalId        String? // null = «اعتيادي»
+  goal          Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  notes         String?
+  progress      Int? // نسبة إنجاز 0..100
+  imageData     String? // صورة مصغّرة (data URL)
+  status        Status           @default(NOT_STARTED)
+  completedAt   DateTime?
+  cancelledAt   DateTime?
+  cancelReason  String?
+  stuck         Boolean          @default(false)
+  stuckNote     String?
+  order         Int              @default(0)
+  // الترحيل والأتمتة
+  carriedFromId String?          @unique
+  carriedFrom   WeeklyTask?      @relation("carry", fields: [carriedFromId], references: [id], onDelete: SetNull)
+  carriedTo     WeeklyTask?      @relation("carry")
+  carryCount    Int              @default(0)
+  isAuto        Boolean          @default(false) // انعملت لحالها (ترحيل/تكرار/خطة)
+  touchedAt     DateTime? // آخر تعديل مني أنا (مش من الأتمتة)
+  // الربط
+  recurrenceId  String?
+  recurrence    Recurrence?      @relation(fields: [recurrenceId], references: [id], onDelete: SetNull)
+  planSubtaskId String?
+  planSubtask   PlanSubtask?     @relation(fields: [planSubtaskId], references: [id], onDelete: SetNull)
+  planStepId    String?
+  planStep      PlanStep?        @relation(fields: [planStepId], references: [id], onDelete: SetNull)
+  steps         WeeklyTaskStep[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  @@unique([recurrenceId, weekStart])
+  @@index([weekStart])
+}
+
+model WeeklyTaskStep {
+  id     String     @id @default(cuid())
+  taskId String
+  task   WeeklyTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  title  String
+  done   Boolean    @default(false)
+  order  Int        @default(0)
+}
+
+// قالب المهمة المتكررة «كل أسبوع»
+model Recurrence {
+  id        String       @id @default(cuid())
+  title     String
+  goalId    String?
+  goal      Goal?        @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  notes     String?
+  steps     Json? // عناوين الخطوات
+  startWeek DateTime     @db.Date
+  stoppedAt DateTime?    @db.Date // أول أسبوع ما بتنعمل فيه نسخة
+  tasks     WeeklyTask[]
+  createdAt DateTime     @default(now())
+}
+
+// مراجعة الأسبوع
+model WeekReview {
+  weekStart DateTime  @id @db.Date // الأسبوع الي عم نراجعه
+  learned   String?
+  top3      Json? // ["...", "...", "..."]
+  seenAt    DateTime?
+  updatedAt DateTime  @updatedAt
+}
+
+// ===== التذكيرات (المرحلة 4) =====
+model Notification {
+  id        String    @id @default(cuid())
+  kind      String // daily | plan_thursday | kpi_friday | summary_sunday | carry_alert | dormant_goal
+  title     String
+  body      String?
+  link      String?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+}

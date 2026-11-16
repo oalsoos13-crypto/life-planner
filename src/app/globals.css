@@ -1,26 +1,77 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: var(--font-tajawal), system-ui, sans-serif;
+  --color-bg: #f6f5f1;
+  --color-card: #ffffff;
+  --color-ink: #1f2933;
+  --color-muted: #6b7280;
+  --color-line: #e7e5df;
+  --color-accent: #0f766e;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: light;
 }
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+.dark {
+  color-scheme: dark;
+  --color-bg: #111614;
+  --color-card: #1a211f;
+  --color-ink: #e8ece9;
+  --color-muted: #94a3a0;
+  --color-line: #2a3431;
+  --color-accent: #2dd4bf;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  -webkit-tap-highlight-color: transparent;
 }
+
+.card {
+  background: var(--color-card);
+  border: 1px solid var(--color-line);
+  border-radius: 1rem;
+}
+
+input, textarea, select {
+  background: var(--color-bg);
+  border: 1px solid var(--color-line);
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.7rem;
+  width: 100%;
+  font-size: 16px; /* يمنع التكبير على الآيفون */
+}
+input[type="checkbox"], input[type="range"] {
+  width: auto;
+  padding: 0;
+}
+input:focus, textarea:focus, select:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border-radius: 0.7rem;
+  padding: 0.5rem 0.9rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  border: 1px solid var(--color-line);
+  background: var(--color-card);
+}
+.btn-primary {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: #fff;
+}
+.dark .btn-primary { color: #04201d; }
+.btn:disabled { opacity: 0.5; }
+
+.pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 5rem); }
