@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import type { MouthDriver } from "./speech";
+import { Face2D } from "./Face2D";
 
 /**
  * وجه المستشار ثلاثي الأبعاد (Three.js، بيتحمّل بس بهالشاشة).
@@ -10,7 +11,8 @@ import type { MouthDriver } from "./speech";
  */
 export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver; modelUrl?: string; className?: string }) {
   const host = useRef<HTMLDivElement>(null);
-  const [failed, setFailed] = useState(false);
+  // الوجه المرسوم بيضل ظاهر لحد ما الـ 3D يرسم أول فريم صح؛ إذا فشل (شيدر، سياق WebGL) بيضل هو
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const el = host.current;
@@ -25,14 +27,17 @@ export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver;
       try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power" });
       } catch {
-        setFailed(true);
         return;
       }
+      let broken = false;
+      const fail = () => { broken = true; renderer.domElement.style.opacity = "0"; setReady(false); };
+      renderer.debug.onShaderError = fail;
+      renderer.domElement.addEventListener("webglcontextlost", fail);
+      let shown = false;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       el.appendChild(renderer.domElement);
-      renderer.domElement.style.width = "100%";
-      renderer.domElement.style.height = "100%";
+      Object.assign(renderer.domElement.style, { position: "absolute", inset: "0", width: "100%", height: "100%", opacity: "0", transition: "opacity .5s" });
 
       const scene = new THREE.Scene();
       const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 50);
@@ -69,7 +74,8 @@ export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver;
       rig.add(head);
 
       const buildDefault = () => {
-        const glass = new THREE.MeshPhysicalMaterial({ color: 0x2a2470, roughness: 0.18, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.15, sheen: 1, sheenColor: new THREE.Color(0x9fdcff), sheenRoughness: 0.35, emissive: 0x1a1250, emissiveIntensity: 0.6 });
+        // Standard مش Physical: أخف على شرائح الموبايل
+        const glass = new THREE.MeshStandardMaterial({ color: 0x2a2470, roughness: 0.22, metalness: 0.15, emissive: 0x1a1250, emissiveIntensity: 0.7 });
         const skull = new THREE.Mesh(new THREE.SphereGeometry(0.82, 64, 48), glass);
         skull.scale.set(0.9, 1.08, 0.92);
         head.add(skull);
@@ -92,9 +98,6 @@ export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver;
           e.position.set(x, 0.12, 0.72);
           e.rotation.z = Math.PI / 2;
           head.add(e);
-          const glow = new THREE.PointLight(0x9fdcff, 0.4, 0.8);
-          glow.position.copy(e.position).add(new THREE.Vector3(0, 0, 0.1));
-          head.add(glow);
           return e;
         });
         setBlink = (b) => eyes.forEach((e) => (e.scale.x = 1 - b * 0.9));
@@ -188,6 +191,12 @@ export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver;
         }
         (ring.material as import("three").PointsMaterial).opacity = driver.listening ? 0.6 + Math.sin(t * 6) * 0.3 : 0.9;
         renderer.render(scene, camera);
+        // أول فريم نجح (الشيدرات بتنبني هون): منبيّن الـ 3D ومنخبّي المرسوم
+        if (!shown && !broken && !renderer.getContext().isContextLost()) {
+          shown = true;
+          renderer.domElement.style.opacity = "1";
+          setReady(true);
+        }
       };
       loop();
 
@@ -211,8 +220,8 @@ export function Avatar3D({ driver, modelUrl, className }: { driver: MouthDriver;
   }, [driver, modelUrl]);
 
   return (
-    <div ref={host} className={className} aria-hidden>
-      {failed && <div className="orb mx-auto mt-10 h-28 w-28 rounded-full" />}
+    <div ref={host} className={`relative ${className ?? ""}`} aria-hidden>
+      <Face2D driver={driver} className={`absolute inset-0 m-auto h-full w-full transition-opacity duration-500 ${ready ? "opacity-0" : "opacity-100"}`} />
     </div>
   );
 }

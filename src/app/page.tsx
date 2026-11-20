@@ -17,6 +17,7 @@ import { blocksForDay, fmtMinute, greeting as greet, hijriDay, hijriLabel, nextR
 import { getKpiStrip, getToday } from "@/modules/daily/server";
 import { advisorConnected, getTodayLog } from "@/modules/advisor/server";
 import { CaptureLog } from "@/components/advisor/CaptureLog";
+import { Face2D } from "@/components/avatar/Face2D";
 import { getKnowScore } from "@/modules/profile/server";
 import { pendingApprovals } from "@/modules/agent/server";
 
@@ -124,6 +125,16 @@ export default async function Home() {
           label={fromNextWeek ? "الخطوة الجاية · من الأسبوع الجاي" : undefined}
         />
 
+        {/* المستشار بوجهه: فوق، قريب من الإبهام، مش بآخر الصفحة */}
+        <Link href="/advisor" className="hero-card flex items-center gap-3 !p-3 active:opacity-90">
+          <Face2D className="relative z-[1] h-[88px] w-[84px] shrink-0" />
+          <span className="relative z-[1] min-w-0 flex-1">
+            <span className="block font-display text-[21px] font-bold">مستشارك</span>
+            <span className="block text-[14px] text-white/75">{advisorConnected() ? "اكبس وكلّمه بصوتك" : "اكبس لتشوفه وتسمع صوته"}</span>
+          </span>
+          <span className="relative z-[1] text-white/70" aria-hidden>‹</span>
+        </Link>
+
         <DayLine blocks={blocks} minute={minute} />
 
         <section aria-labelledby="en-h">
@@ -190,15 +201,6 @@ export default async function Home() {
           </div>
           <CaptureLog items={log} empty="لسا ما حكيت شي اليوم. اكبس المايك تحت واحكي عن يومك، والمستشار بيفرزه ويربطه بأهدافك." />
         </section>
-
-        <Link href="/advisor" className="card flex items-center gap-3 p-4 active:bg-surface-2">
-          <span className="shrink-0"><Planet id="adv-mini" r={20} light="#ffffff" base="#7b66ff" band="#fff" ring /></span>
-          <span className="min-w-0 flex-1">
-            <span className="block font-display text-[20px] font-bold">مستشارك</span>
-            <span className="block text-[14px] text-muted">{advisorConnected() ? "اسأله عن قرار، أولوية، أو شو تعمل بوقتك الفاضي" : "جاهز، وبيستنى مفتاح Claude لينوصل"}</span>
-          </span>
-          <span className="text-muted" aria-hidden>‹</span>
-        </Link>
 
         <Link href="/me" className="card flex items-center gap-3 p-4 active:bg-surface-2">
           <span className="relative flex h-11 w-11 shrink-0 items-center justify-center">
