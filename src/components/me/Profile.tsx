@@ -176,6 +176,7 @@ export function People({ people, today }: { people: PersonView[]; today: string 
                   <span className="block font-bold leading-snug">{p.name}{p.relation && <span className="font-normal text-muted"> · {p.relation}</span>}</span>
                   <span className={`block text-[13.5px] ${stale ? "text-warning" : "text-muted"}`}>{ago(p.lastContact, today)}{p.note && ` · ${p.note}`}</span>
                 </button>
+                <a href={`/connect?p=${p.id}`} className="btn btn-text btn-sm h-10 w-10 shrink-0 p-0" aria-label={`اكتب رسالة لـ ${p.name}`}><Icon name="Send" size={16} /></a>
                 <button type="button" className="btn btn-sm shrink-0" disabled={pending} onClick={() => start(async () => { await A.touchPerson(p.id); })}>حكينا</button>
               </li>
             );

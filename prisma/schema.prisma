@@ -65,6 +65,8 @@ model Settings {
   updatedAt           DateTime  @updatedAt
   profileLearnedAt    DateTime?
   agentSeenAt         DateTime?
+  businessFaq         String? // معلومات المجدّد للرد الآلي
+  waAutoReply         Boolean   @default(true)
 }
 
 // ===== الاستراتيجية =====
@@ -556,4 +558,33 @@ model AgentJob {
   updatedAt    DateTime  @updatedAt
 
   @@index([status])
+}
+
+// ── التواصل (Stage 6) ──
+// منشورات المجدّد: بتنجدول عبر Postiz (API رسمي)
+model SocialPost {
+  id          String   @id @default(cuid())
+  content     String
+  channels    Json // [{id, name, identifier}]
+  scheduledAt DateTime
+  status      String   @default("DRAFT") // DRAFT | SCHEDULED | FAILED
+  externalId  String?
+  error       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([scheduledAt])
+}
+
+// واتساب بزنس للمجدّد (Cloud API الرسمي): الرسائل الداخلة والردود
+model WaMessage {
+  id        String   @id @default(cuid())
+  waId      String?  @unique // معرّف رسالة واتساب (منع التكرار)
+  peer      String // رقم العميل (بالقاعدة بس)
+  direction String // IN | OUT
+  text      String
+  auto      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([peer, createdAt])
 }
