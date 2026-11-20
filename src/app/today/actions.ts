@@ -2,6 +2,7 @@
 // محوّلات رفيعة لشاشة «اليوم»: مدخلات ← حالة استخدام ← تحديث الشاشة
 import { revalidatePath } from "next/cache";
 import { dailyUseCases as UC } from "@/modules/daily/server";
+import { advisorUseCases as AD } from "@/modules/advisor/server";
 import { getContext } from "@/lib/week";
 
 type R = { ok: true } | { ok: false; message: string };
@@ -29,6 +30,18 @@ export async function newHabit(name: string, icon: string, pillarId: string | nu
 export async function removeHabit(habitId: string) {
   return done(await UC.archiveHabit(habitId));
 }
+/** الالتقاط الذكي: بيحفظ، بيفهم، وبيطبّق لحاله. بيرجّع شو فهم عشان تشوفه وتتراجع إذا بدك */
 export async function captureText(text: string, source: "TEXT" | "VOICE") {
-  return done(await UC.capture(text, source));
+  const { today, currentWeek } = await getContext();
+  const r = await AD.captureAndApply(text, source, today, currentWeek);
+  revalidatePath("/", "layout");
+  return r.ok ? { ok: true as const, analyzer: r.value.analyzer, items: r.value.items } : { ok: false as const, message: r.message };
+}
+export async function undoCapture(itemId: string) {
+  return done(await AD.undoItem(itemId));
+}
+export async function askAdvisor(question: string) {
+  const r = await AD.ask(question, await today());
+  revalidatePath("/advisor");
+  return r.ok ? { ok: true as const, answer: r.value } : { ok: false as const, message: r.message };
 }

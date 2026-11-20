@@ -1,12 +1,12 @@
 // أيقونات خطية موحّدة (Lucide): نفس السماكة والحجم بكل التطبيق (Atomic Design: ذرة)
 import {
   BookOpen, CalendarRange, Check, ChevronLeft, ChevronRight, Circle, Compass, Droplets, Dumbbell, Footprints, Gem, HandHeart,
-  Lightbulb, Mic, Moon, Pause, Pen, Plus, Settings2, Sparkles, Sun, Trash2, X, Zap, type LucideIcon,
+  Lightbulb, Mic, Moon, Pause, Pen, Plus, Settings2, Sparkles, Sun, Trash2, X, Zap, ListChecks, Wallet, Gauge, Smile, Undo2, Send, BatteryMedium, type LucideIcon,
 } from "lucide-react";
 
 export const ICONS: Record<string, LucideIcon> = {
   BookOpen, CalendarRange, Check, ChevronLeft, ChevronRight, Circle, Compass, Droplets, Dumbbell, Footprints, Gem, HandHeart,
-  Lightbulb, Mic, Moon, Pause, Pen, Plus, Settings2, Sparkles, Sun, Trash2, X, Zap,
+  Lightbulb, Mic, Moon, Pause, Pen, Plus, Settings2, Sparkles, Sun, Trash2, X, Zap, ListChecks, Wallet, Gauge, Smile, Undo2, Send, BatteryMedium,
 };
 
 /** أيقونات العادات الي بيختار منها */

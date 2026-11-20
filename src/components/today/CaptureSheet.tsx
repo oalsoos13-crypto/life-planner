@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Sheet } from "@/components/ui/Sheet";
 import { Icon } from "@/components/ui/Icon";
 import { captureText } from "@/app/today/actions";
+import { CaptureLog, type LogItem } from "@/components/advisor/CaptureLog";
 
 // واجهة التعرّف على الصوت بالمتصفح (كروم أندرويد بيدعمها بالعربي). ما في تحميل ولا كلفة.
 type Rec = {
@@ -31,6 +32,7 @@ export function CaptureSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [listening, setListening] = useState(false);
   const [seconds, setSeconds] = useState(0);
   const [saved, setSaved] = useState(false);
+  const [result, setResult] = useState<{ analyzer: string; items: LogItem[] } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const rec = useRef<Rec | null>(null);
@@ -56,6 +58,7 @@ export function CaptureSheet({ open, onClose }: { open: boolean; onClose: () => 
   }, [open]);
 
   const listen = () => {
+    setResult(null);
     const R = getRec();
     if (!R) return;
     const r = new R();
@@ -103,6 +106,7 @@ export function CaptureSheet({ open, onClose }: { open: boolean; onClose: () => 
         setSeconds(0);
         usedVoice.current = false;
         setSaved(true);
+        setResult({ analyzer: r.analyzer, items: r.items });
         if ("vibrate" in navigator) navigator.vibrate?.(10);
       } else setError(r.message);
     });
@@ -145,8 +149,17 @@ export function CaptureSheet({ open, onClose }: { open: boolean; onClose: () => 
         <button type="button" className="btn btn-primary w-full" aria-busy={pending} onClick={save} disabled={!text.trim() && !interim.trim()}>
           {pending ? "عم يحفظ…" : "احفظ"}
         </button>
-        {saved && <p className="saved-flash text-center text-[15px] text-success">✓ انحفظ بصندوق الالتقاط</p>}
-        <p className="text-center text-[13px] text-muted">هلق بينحفظ كما هو. لما نبني المستشار، رح يفرزه لحاله لمهام ومصاريف وعادات ويربطه بأهدافك.</p>
+        {saved && result && (
+          <div className="rise space-y-2">
+            <div className="flex items-baseline justify-between">
+              <h3 className="font-display text-[20px] font-bold">شو فهمت وسجّلت</h3>
+              <span className="text-[12.5px] text-muted">لحاله، وبتقدر تتراجع</span>
+            </div>
+            <CaptureLog items={result.items} />
+            {result.analyzer === "RULES" && <p className="text-[12.5px] text-muted">فرزته بالقواعد البسيطة. لما ينوصل مفتاح المستشار، الفهم بيصير أذكى بكتير ويربط بكل أهدافك.</p>}
+          </div>
+        )}
+        {!result && <p className="text-center text-[13px] text-muted">بتحكي وبس. المستشار بيفرز كلامك لمهام ومصاريف وعادات ومؤشرات، وبيربطها بأهدافك لحاله.</p>}
       </div>
     </Sheet>
   );
