@@ -24,7 +24,7 @@ export function Sheet({ open, onClose, title, children }: { open: boolean; onClo
       <div className="sheet" role="dialog" aria-modal="true" aria-label={title}>
         <div className="mx-auto mb-3 h-1.5 w-10 rounded-full bg-line" />
         <div className="mb-4 flex items-center justify-between gap-2">
-          <h2 className="text-[20px] font-bold leading-snug">{title}</h2>
+          <h2 className="font-display text-[23px] font-bold leading-snug">{title}</h2>
           <button type="button" onClick={onClose} className="btn btn-text h-11 w-11 p-0 text-muted" aria-label="سكّر">✕</button>
         </div>
         {children}

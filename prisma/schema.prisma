@@ -55,7 +55,8 @@ model Settings {
   weekStartDay        Int       @default(0) // 0 = الأحد
   timezone            String    @default("Asia/Kuwait")
   locale              String    @default("ar")
-  theme               String    @default("system") // system | light | dark
+  theme               String    @default("dark") // time | system | light | dark (dark = فضاء ونجوم، light = سما الفجر)
+  dayBlocks           Json? // أوقات الدوام الثابتة لخط اليوم: [{label, start, end, kind}]
   remindDaily         Boolean   @default(true)
   remindPlanThursday  Boolean   @default(true)
   remindKpiFriday     Boolean   @default(true)
@@ -81,6 +82,7 @@ model Cycle {
 
 model Pillar {
   id          String       @id @default(cuid())
+  habits      Habit[]
   name        String
   color       String
   order       Int          @default(0)
@@ -352,4 +354,49 @@ model MetricReading {
   createdAt DateTime @default(now())
 
   @@id([metricId, date])
+}
+
+// ===== المرحلة 3، الشريحة 1: اليوم =====
+// سجل اليوم: النية الصبح، الطاقة والمزاج، ومراجعة المسا (الرواقيين)
+model DayLog {
+  date      DateTime @id @db.Date
+  intent    String?
+  energy    Int? // 1..5
+  mood      Int? // 1..5
+  evening   String?
+  updatedAt DateTime @updatedAt
+}
+
+// العادات (Atomic Habits): كل عادة إلها محور، وممكن تغذّي مؤشر قائد
+model Habit {
+  id        String       @id @default(cuid())
+  name      String
+  icon      String       @default("Circle")
+  pillarId  String?
+  pillar    Pillar?      @relation(fields: [pillarId], references: [id], onDelete: SetNull)
+  metricId  String?
+  order     Int          @default(0)
+  archived  Boolean      @default(false)
+  checks    HabitCheck[]
+  createdAt DateTime     @default(now())
+}
+
+model HabitCheck {
+  habitId   String
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  createdAt DateTime @default(now())
+
+  @@id([habitId, date])
+}
+
+// صندوق الالتقاط: كل شي بتحكيه أو بتكتبه بسرعة. المستشار بيفرزه لحاله بمرحلته
+model Capture {
+  id          String    @id @default(cuid())
+  text        String
+  source      String    @default("TEXT") // TEXT | VOICE
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([processedAt])
 }

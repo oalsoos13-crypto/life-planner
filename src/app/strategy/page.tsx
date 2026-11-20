@@ -1,4 +1,5 @@
 import { Shell } from "@/components/Shell";
+import { Planet } from "@/components/space/Planet";
 import { KernelCard } from "@/components/strategy/KernelCard";
 import { AuditCard } from "@/components/strategy/AuditCard";
 import { OkrCard } from "@/components/strategy/OkrCard";
@@ -21,7 +22,7 @@ export default async function StrategyPage() {
   const sub = v.cycle.started ? `الأسبوع ${v.cycle.weekNo} من 13` : `بتبلّش ${formatDay(v.cycle.start, settings.locale, { day: "numeric", month: "long" })}`;
 
   return (
-    <Shell title="الاستراتيجية" subtitle={`${v.cycle.name} · ${sub}`}>
+    <Shell title="الاستراتيجية" art={<div className="-mt-10 -ml-16"><Planet id="sg-p" r={62} light="#ffe8b8" base="#d5762b" band="#ffe1a8" ring /></div>} subtitle={`${v.cycle.name} · ${sub}`}>
       <div className="space-y-6">
         {v.kernel?.isDraft && <ConfirmDraft cycleId={v.cycle.id} />}
         <KernelCard cycleId={v.cycle.id} kernel={v.kernel} />

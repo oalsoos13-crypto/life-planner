@@ -28,10 +28,10 @@ export function SettingsForm({ weekStartDay, locale, theme }: { weekStartDay: nu
       </label>
       <div className="space-y-1.5">
         <span className="text-sm text-muted">{t.theme}</span>
-        <div className="grid grid-cols-3 gap-2">
-          {(["system", "light", "dark"] as const).map((th) => (
+        <div className="grid grid-cols-2 gap-2">
+          {(["dark", "light", "time", "system"] as const).map((th) => (
             <button key={th} type="button" disabled={pending} onClick={() => set({ theme: th })} className={`btn ${theme === th ? "btn-primary" : ""}`}>
-              {th === "system" ? t.themeSystem : th === "light" ? t.themeLight : t.themeDark}
+              {th === "time" ? "حسب الوقت" : th === "system" ? t.themeSystem : th === "light" ? t.themeLight : t.themeDark}
             </button>
           ))}
         </div>

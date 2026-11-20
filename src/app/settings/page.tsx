@@ -1,5 +1,6 @@
 import { RestoreButton } from "@/components/RestoreButton";
 import { Shell } from "@/components/Shell";
+import { Planet } from "@/components/space/Planet";
 import { SettingsForm } from "@/components/SettingsForm";
 import { getDict } from "@/lib/i18n";
 import { getContext } from "@/lib/week";
@@ -9,7 +10,7 @@ export default async function SettingsPage() {
   const { settings } = await getContext();
   const t = getDict(settings.locale);
   return (
-    <Shell title={t.settings}>
+    <Shell title={t.settings} art={<div className="-mt-4 -ml-8"><Planet id="st-p" r={46} light="#ffe2c4" base="#c46bff" band="#ffd1f0" /></div>}>
       <div className="space-y-4">
         <SettingsForm weekStartDay={settings.weekStartDay} locale={settings.locale} theme={settings.theme} />
         <section className="card space-y-3 p-4">

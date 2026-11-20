@@ -1,33 +1,58 @@
 "use client";
 import Link from "next/link";
+import { useState } from "react";
 import { usePathname } from "next/navigation";
-import { useI18n } from "./I18n";
+import { Icon } from "./ui/Icon";
+import { CaptureSheet } from "./today/CaptureSheet";
 
 const items = [
-  { href: "/", key: "home", icon: "M3 11l9-7 9 7v9a1 1 0 01-1 1h-5v-6H9v6H4a1 1 0 01-1-1z" },
-  { href: "/week", key: "week", icon: "M4 6h16M4 12h16M4 18h10" },
-  { href: "/strategy", key: "strategy", icon: "M12 3v18M5 8l7-5 7 5M5 16l7 5 7-5" },
-  { href: "/settings", key: "settings", icon: "M12 15a3 3 0 100-6 3 3 0 000 6zm8-3l2-1-2-4-2 1a7 7 0 00-2-1l-.5-2h-4L11 7a7 7 0 00-2 1L7 7l-2 4 2 1a7 7 0 000 2l-2 1 2 4 2-1a7 7 0 002 1l.5 2h4l.5-2a7 7 0 002-1l2 1 2-4-2-1a7 7 0 000-2z" },
+  { href: "/", label: "اليوم", icon: "Sun" },
+  { href: "/week", label: "الأسبوع", icon: "CalendarRange" },
+  null, // زر الالتقاط بالنص، تحت الإبهام (Fitts)
+  { href: "/strategy", label: "الاستراتيجية", icon: "Compass" },
+  { href: "/settings", label: "الإعدادات", icon: "Settings2" },
 ] as const;
 
+/** تنقل عائم بخمس أماكن وزر مايك بالنص (مخطط المنتج: الالتقاط من أي شاشة) */
 export function BottomNav() {
-  const { t } = useI18n();
   const path = usePathname();
+  const [capturing, setCapturing] = useState(false);
   return (
-    <nav className="fixed bottom-0 inset-x-0 z-20 border-t border-line bg-card/95 backdrop-blur" style={{ paddingBottom: "env(safe-area-inset-bottom)" }}>
-      <div className="mx-auto max-w-xl grid grid-cols-4">
-        {items.map((it) => {
-          const active = it.href === "/" ? path === "/" : path.startsWith(it.href);
-          return (
-            <Link key={it.href} href={it.href} className={`flex flex-col items-center gap-1 py-2.5 text-xs ${active ? "text-accent font-bold" : "text-muted"}`}>
-              <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
-                <path d={it.icon} />
-              </svg>
-              {t[it.key]}
-            </Link>
-          );
-        })}
-      </div>
-    </nav>
+    <>
+      <nav
+        className="fixed inset-x-3 z-30 mx-auto max-w-lg rounded-[28px] border border-line bg-card/90 shadow-[var(--shadow-lg)] backdrop-blur-xl dark:border-[rgb(185_200_255/0.22)] dark:bg-[rgb(16_14_50/0.78)]"
+        style={{ bottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
+        aria-label="التنقل"
+      >
+        <div className="grid h-[72px] grid-cols-5 items-center">
+          {items.map((it) =>
+            it === null ? (
+              <div key="mic" className="flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => setCapturing(true)}
+                  aria-label="احكي أو اكتب: التقاط سريع"
+                  className="orb -mt-9 flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_0_0_6px_var(--color-bg),0_0_40px_var(--glow)] transition active:scale-95"
+                >
+                  <Icon name="Mic" size={28} strokeWidth={2} />
+                </button>
+              </div>
+            ) : (
+              <NavLink key={it.href} {...it} active={it.href === "/" ? path === "/" : path.startsWith(it.href)} />
+            ),
+          )}
+        </div>
+      </nav>
+      <CaptureSheet open={capturing} onClose={() => setCapturing(false)} />
+    </>
+  );
+}
+
+function NavLink({ href, label, icon, active }: { href: string; label: string; icon: string; active: boolean }) {
+  return (
+    <Link href={href} aria-current={active ? "page" : undefined} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-bold text-accent dark:text-[#b9f3ff]" : "text-muted"}`}>
+      <Icon name={icon} size={23} strokeWidth={active ? 2.2 : 1.8} />
+      {label}
+    </Link>
   );
 }

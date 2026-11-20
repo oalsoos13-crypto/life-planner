@@ -56,3 +56,17 @@ export function wipWarning(tasks: { status: string; goalId: string | null; cance
 export function clampProgress(p: number) {
   return Math.max(0, Math.min(100, Math.round(p)));
 }
+
+/** مجموعات الأسبوع (Laws of UX: المنطقة المشتركة، ميلر): ماشية ← لسا ← خلصت ← ملغاة */
+export function groupWeek<T extends { status: string; cancelled: boolean }>(tasks: T[]) {
+  return {
+    inProgress: tasks.filter((t) => !t.cancelled && t.status === "IN_PROGRESS"),
+    todo: tasks.filter((t) => !t.cancelled && t.status === "NOT_STARTED"),
+    done: tasks.filter((t) => !t.cancelled && t.status === "DONE"),
+    cancelled: tasks.filter((t) => t.cancelled),
+  };
+}
+
+/** كبسة الدائرة: خلصت ↔ رجعت؛ والضغطة المطوّلة: ماشية ↔ لسا */
+export const tapStatus = (s: TaskStatus): TaskStatus => (s === "DONE" ? "NOT_STARTED" : "DONE");
+export const holdStatus = (s: TaskStatus): TaskStatus => (s === "IN_PROGRESS" ? "NOT_STARTED" : "IN_PROGRESS");
