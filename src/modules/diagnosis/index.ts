@@ -1,2 +1,2 @@
-// الوحدة diagnosis: بتنبني بالشرائح الجاية (دليل الهندسة §10)
-export {};
+// الوحدة diagnosis: لوحة الحياة وSWOT
+export * from "./domain/wheel";
