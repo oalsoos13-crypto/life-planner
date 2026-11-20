@@ -77,7 +77,7 @@ export function WeekList({ tasks, goals, editable, weekStart, autoAdd }: { tasks
       )}
 
       {undo && (
-        <div role="status" className="rise fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] z-40 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-bg shadow-[var(--shadow-lg)]">
+        <div role="status" className="rise fixed inset-x-4 bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] z-40 mx-auto flex max-w-lg items-center justify-between gap-3 rounded-2xl bg-ink px-4 py-3 text-bg shadow-[var(--shadow-lg)]">
           <span className="min-w-0 truncate">✓ خلصت «{undo.title}»</span>
           <button
             type="button"
@@ -98,7 +98,7 @@ export function WeekList({ tasks, goals, editable, weekStart, autoAdd }: { tasks
           type="button"
           onClick={() => setAdding(true)}
           aria-label="أضف مهمة"
-          className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] end-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl text-on-accent shadow-[var(--shadow-md)] transition active:scale-95"
+          className="fixed bottom-[calc(env(safe-area-inset-bottom)+7.5rem)] end-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl text-on-accent shadow-[var(--shadow-md)] transition active:scale-95"
         >
           +
         </button>

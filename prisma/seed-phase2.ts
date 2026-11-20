@@ -22,8 +22,27 @@ export async function applyPalette(prisma: PrismaClient) {
     await prisma.pillar.updateMany({ where: { name, color: oldC }, data: { color: newC } });
 }
 
+// عادات البداية (Atomic Habits: صغيرة كتير) ودوامات اليوم. بتنزرع مرة وحدة بس:
+// إذا عندك أي عادة (حتى لو أرشفتها) أو دوامات محفوظة، ما بتلمسها.
+const STARTER_HABITS: { name: string; icon: string; pillar: string }[] = [
+  { name: "مشي 10 دقائق", icon: "Footprints", pillar: "الصحة" },
+  { name: "الورد", icon: "BookOpen", pillar: "الروحانيات" },
+  { name: "مي 8 كاسات", icon: "Droplets", pillar: "الصحة" },
+  { name: "نوم قبل 12", icon: "Moon", pillar: "الصحة" },
+];
+
+export async function seedDaily(prisma: PrismaClient) {
+  if ((await prisma.habit.count()) === 0) {
+    const pillars = await prisma.pillar.findMany({ select: { id: true, name: true } });
+    await prisma.habit.createMany({
+      data: STARTER_HABITS.map((h, i) => ({ name: h.name, icon: h.icon, order: i, pillarId: pillars.find((p) => p.name === h.pillar)?.id ?? null })),
+    });
+  }
+}
+
 export async function seedPhase2(prisma: PrismaClient) {
   await applyPalette(prisma);
+  await seedDaily(prisma);
   const cycle = await prisma.cycle.findFirst({ where: { status: "ACTIVE" }, orderBy: { startDate: "asc" } });
   if (!cycle) return console.log("ما في دورة نشطة، ما في مسودة استراتيجية.");
   if (await prisma.strategyKernel.findUnique({ where: { cycleId: cycle.id } })) {

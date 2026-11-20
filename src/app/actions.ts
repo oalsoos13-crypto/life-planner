@@ -191,7 +191,7 @@ export async function saveReview(weekStart: string, learned: string, top3: strin
 export async function updateSettings(data: { weekStartDay?: number; locale?: string; theme?: string }) {
   const { settings } = await getContext();
   if (data.locale && !["ar", "en"].includes(data.locale)) delete data.locale;
-  if (data.theme && !["system", "light", "dark"].includes(data.theme)) delete data.theme;
+  if (data.theme && !["time", "system", "light", "dark"].includes(data.theme)) delete data.theme;
   if (data.weekStartDay === undefined || normalizeWeekDay(data.weekStartDay) === settings.weekStartDay) {
     delete data.weekStartDay;
     await prisma.settings.update({ where: { id: 1 }, data });
