@@ -85,3 +85,36 @@ export async function askClaude(history: ChatTurn[], question: string, contextJs
   const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim();
   return text || null;
 }
+
+// ── الملف الحي: Claude بيقرأ كلام آخر أسبوعين وبيطلّع شو تعلّم عن عمر ──
+const PROFILE_AREAS_FOR_CLAUDE = ["VALUES", "ENERGY", "HABITS", "PROCRASTINATION", "TRIGGERS", "MONEY", "STRENGTHS", "PREFERENCES"] as const;
+const LearnSchema = z.object({
+  facts: z.array(z.object({ area: z.enum(PROFILE_AREAS_FOR_CLAUDE), text: z.string(), evidence: z.string() })),
+  people: z.array(z.object({ name: z.string(), relation: z.string().nullable(), note: z.string().nullable() })),
+});
+export type Learned = z.infer<typeof LearnSchema>;
+
+const LEARN_SYSTEM = `أنت بتبني «ملف حي» عن عمر من كلامه اليومي، عشان المستشار يفهمه أكتر مع الوقت.
+طلّع حقائق جديدة بس، كل وحدة جملة قصيرة بالشامي موجّهة لعمر («إنت بتـ...»)، مع دليل قصير من كلامه (evidence).
+المجالات: VALUES قيم، ENERGY طاقة، HABITS عادات، PROCRASTINATION تأجيل وأسبابه، TRIGGERS شو بيرفعه أو بينزّله، MONEY مصاري، STRENGTHS قوّة، PREFERENCES طريقته بالشغل والحكي.
+الناس: أي شخص مهم ذكره بالاسم (أهل، أصحاب، زملاء)، مع صلته وملاحظة قصيرة. لا تحط أرقام تلفونات أو معلومات حساسة عنهم.
+قواعد: لا تكرّر حقيقة موجودة أو مرفوضة. لا تحكم ولا تشخّص طبياً؛ اكتبها كملاحظة. إذا ما في شي جديد واضح، رجّع قوائم فاضية. 6 حقائق بالكتير.`;
+
+export async function learnProfileWithClaude(input: { captures: string[]; known: string[]; rejected: string[]; people: string[] }): Promise<Learned | null> {
+  const res = await getClient().beta.messages.parse({
+    model: MODEL,
+    max_tokens: 8000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: [{ type: "text", text: LEARN_SYSTEM, cache_control: { type: "ephemeral" } }],
+    output_config: { effort: "medium", format: betaZodOutputFormat(LearnSchema) },
+    messages: [
+      {
+        role: "user",
+        content: `بعرفه (لا تكرّر):\n${input.known.join("\n") || "-"}\n\nرفضها (لا ترجّعها):\n${input.rejected.join("\n") || "-"}\n\nناس معروفين:\n${input.people.join("، ") || "-"}\n\nكلامه بآخر أسبوعين:\n"""${input.captures.join("\n---\n")}"""`,
+      },
+    ],
+  });
+  if (res.stop_reason === "refusal") return null;
+  return res.parsed_output ?? null;
+}

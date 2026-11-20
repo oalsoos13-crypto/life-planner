@@ -17,6 +17,7 @@ import { blocksForDay, fmtMinute, greeting as greet, hijriDay, hijriLabel, nextR
 import { getKpiStrip, getToday } from "@/modules/daily/server";
 import { advisorConnected, getTodayLog } from "@/modules/advisor/server";
 import { CaptureLog } from "@/components/advisor/CaptureLog";
+import { getKnowScore } from "@/modules/profile/server";
 
 // «اليوم» (مخطط المنتج، محرك التنفيذ اليومي؛ دليل الواجهات §10.1):
 // النية ← الخطوة الجاية بوقتها ← يومك ← الطاقة والعادات ← أرقام الربع ← مراجعة المسا.
@@ -53,7 +54,7 @@ export default async function Home() {
     getTodayLog(today),
     prisma.pillar.findMany({ where: { archived: false }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
   ]);
-  const kpis = strategy ? await getKpiStrip(strategy.cycle.id) : [];
+  const [kpis, know] = await Promise.all([strategy ? getKpiStrip(strategy.cycle.id) : [], getKnowScore(today)]);
   const stats = weekStats(tasks, today);
   const rankOf = new Map(strategy?.okrs.map((o) => [o.id, o.rank]) ?? []);
   const candidates = (list: typeof tasks) =>
@@ -184,6 +185,21 @@ export default async function Home() {
           <span className="min-w-0 flex-1">
             <span className="block font-display text-[20px] font-bold">مستشارك</span>
             <span className="block text-[14px] text-muted">{advisorConnected() ? "اسأله عن قرار، أولوية، أو شو تعمل بوقتك الفاضي" : "جاهز، وبيستنى مفتاح Claude لينوصل"}</span>
+          </span>
+          <span className="text-muted" aria-hidden>‹</span>
+        </Link>
+
+        <Link href="/me" className="card flex items-center gap-3 p-4 active:bg-surface-2">
+          <span className="relative flex h-11 w-11 shrink-0 items-center justify-center">
+            <svg viewBox="0 0 44 44" className="absolute inset-0" aria-hidden>
+              <circle cx="22" cy="22" r="19" fill="none" stroke="var(--color-line)" strokeWidth="3" />
+              <circle cx="22" cy="22" r="19" fill="none" stroke="var(--color-gold)" strokeWidth="3" strokeLinecap="round" strokeDasharray={`${(know.score / 100) * 119.4} 119.4`} transform="rotate(-90 22 22)" />
+            </svg>
+            <b className="relative text-[13px] tnum">{know.score}%</b>
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[20px] font-bold">قديش بيعرفني</span>
+            <span className="block truncate text-[14px] text-muted">{know.next ? know.next.next : "بيعرفك منيح. ضل صحّحه"}</span>
           </span>
           <span className="text-muted" aria-hidden>‹</span>
         </Link>

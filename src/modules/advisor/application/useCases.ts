@@ -123,14 +123,20 @@ export async function ask(question: string, today: Ymd): Promise<Result<string>>
   const q = question.trim().slice(0, 4000);
   if (!q) return err("EMPTY", "اكتب سؤالك");
   if (!hasKey()) return err("NO_KEY", "المستشار لسا مش موصول. لازم مفتاح Claude بإعدادات السيرفر (ANTHROPIC_API_KEY).");
-  const [ctx, last, day, items] = await Promise.all([
+  const [ctx, last, day, items, facts, people] = await Promise.all([
     loadContext(today),
     prisma.advisorMessage.findMany({ orderBy: { createdAt: "desc" }, take: 20 }),
     prisma.dayLog.findUnique({ where: { date: toDate(today) } }),
     prisma.captureItem.findMany({ where: { createdAt: { gte: toDate(today) }, undoneAt: null }, orderBy: { createdAt: "asc" }, take: 40 }),
+    // الملف الحي: الي أكّده عمر أول، وما بنبعت المرفوض أبداً
+    prisma.profileFact.findMany({ where: { status: { not: "REJECTED" } }, orderBy: [{ status: "asc" }, { confidence: "desc" }], take: 30 }),
+    prisma.person.findMany({ orderBy: { updatedAt: "desc" }, take: 20 }),
   ]);
   const history: ChatTurn[] = last.reverse().map((m) => ({ role: m.role as ChatTurn["role"], text: m.text }));
-  const contextJson = JSON.stringify({ ...ctx, نية_اليوم: day?.intent, الطاقة: day?.energy, سجل_اليوم: items.map((i) => `${i.kind}: ${i.summary}`) });
+  const contextJson = JSON.stringify({ ...ctx, نية_اليوم: day?.intent, الطاقة: day?.energy, سجل_اليوم: items.map((i) => `${i.kind}: ${i.summary}`),
+    شو_بعرف_عنه: facts.map((f) => `${f.status === "CONFIRMED" ? "✓" : "؟"} ${f.text}`),
+    ناسه: people.map((p) => [p.name, p.relation, p.note].filter(Boolean).join(" · ")),
+  });
   let answer: string | null;
   try {
     answer = await askClaude(history, q, contextJson);
