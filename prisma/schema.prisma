@@ -25,72 +25,109 @@ enum CycleStatus {
   CLOSED
 }
 
+// المرحلة 2: المنظورات الأربعة (بطاقة الأداء المتوازن)
+enum Perspective {
+  FINANCE
+  IMPACT
+  SYSTEM
+  GROWTH
+}
+
+// هدف الدورة: أولوية نشطة (OKR) أو صيانة (ADR-004)
+enum GoalKind {
+  OKR
+  MAINTENANCE
+}
+
+enum OkrType {
+  COMMITTED
+  ASPIRATIONAL
+}
+
+enum MetricRole {
+  LEADING
+  LAGGING
+}
+
 // إعدادات عامة (صف واحد id=1)
 model Settings {
-  id                 Int       @id @default(1)
-  weekStartDay       Int       @default(0) // 0 = الأحد
-  timezone           String    @default("Asia/Kuwait")
-  locale             String    @default("ar")
-  theme              String    @default("system") // system | light | dark
-  remindDaily        Boolean   @default(true)
-  remindPlanThursday Boolean   @default(true)
-  remindKpiFriday    Boolean   @default(true)
-  remindSummarySunday Boolean  @default(true)
-  lastAutomationDate DateTime? @db.Date // آخر يوم اشتغلت فيه الأتمتة (المرحلة 3)
-  updatedAt          DateTime  @updatedAt
+  id                  Int       @id @default(1)
+  weekStartDay        Int       @default(0) // 0 = الأحد
+  timezone            String    @default("Asia/Kuwait")
+  locale              String    @default("ar")
+  theme               String    @default("system") // system | light | dark
+  remindDaily         Boolean   @default(true)
+  remindPlanThursday  Boolean   @default(true)
+  remindKpiFriday     Boolean   @default(true)
+  remindSummarySunday Boolean   @default(true)
+  lastAutomationDate  DateTime? @db.Date // آخر يوم اشتغلت فيه الأتمتة (المرحلة 3)
+  updatedAt           DateTime  @updatedAt
 }
 
 // ===== الاستراتيجية =====
 model Cycle {
-  id        String      @id @default(cuid())
+  id        String          @id @default(cuid())
   name      String
-  startDate DateTime    @db.Date
-  endDate   DateTime    @db.Date
-  status    CycleStatus @default(ACTIVE)
+  startDate DateTime        @db.Date
+  endDate   DateTime        @db.Date
+  status    CycleStatus     @default(ACTIVE)
   closedAt  DateTime?
   snapshot  Json? // الأرقام النهائية لما تخلص الدورة
   goals     Goal[]
-  createdAt DateTime    @default(now())
+  kernel    StrategyKernel?
+  notDoing  NotDoing[]
+  createdAt DateTime        @default(now())
 }
 
 model Pillar {
-  id        String   @id @default(cuid())
-  name      String
-  color     String
-  order     Int      @default(0)
-  archived  Boolean  @default(false)
-  goals     Goal[]
-  createdAt DateTime @default(now())
+  id          String       @id @default(cuid())
+  name        String
+  color       String
+  order       Int          @default(0)
+  archived    Boolean      @default(false)
+  perspective Perspective? // المحور تحت أي منظور
+  goals       Goal[]
+  notDoing    NotDoing[]
+  createdAt   DateTime     @default(now())
 }
 
 model Goal {
-  id           String        @id @default(cuid())
-  cycleId      String
-  cycle        Cycle         @relation(fields: [cycleId], references: [id], onDelete: Cascade)
-  pillarId     String
-  pillar       Pillar        @relation(fields: [pillarId], references: [id], onDelete: Cascade)
-  title        String
-  notes        String?
-  dueDate      DateTime?     @db.Date
-  weight       Int           @default(3) // 1..5
-  order        Int           @default(0)
-  archived     Boolean       @default(false)
-  copiedFromId String? // لما تنسخ أهداف دورة سابقة
+  id              String         @id @default(cuid())
+  cycleId         String
+  cycle           Cycle          @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  pillarId        String
+  pillar          Pillar         @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+  title           String
+  notes           String?
+  dueDate         DateTime?      @db.Date
+  weight          Int            @default(3) // 1..5
+  order           Int            @default(0)
+  archived        Boolean        @default(false)
+  copiedFromId    String? // لما تنسخ أهداف دورة سابقة
   // مؤشر القياس (اختياري)
-  kpiName      String?
-  kpiUnit      String?
-  kpiStart     Float?
-  kpiTarget    Float?
-  kpiDirection KpiDirection?
-  readings     KpiReading[]
-  supports     GoalSupport[] @relation("supporter")
-  supportedBy  GoalSupport[] @relation("supported")
-  planTasks    PlanTask[]
-  weeklyTasks  WeeklyTask[]
-  recurrences  Recurrence[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  kpiName         String?
+  kpiUnit         String?
+  kpiStart        Float?
+  kpiTarget       Float?
+  kpiDirection    KpiDirection?
+  readings        KpiReading[] // قديم: بينشال بخطوة «قلّص» (ADR-003)
+  // المرحلة 2: OKR أو صيانة
+  kind            GoalKind       @default(MAINTENANCE)
+  rank            Int? // 1..3 للـ OKR، null للصيانة
+  okrType         OkrType?
+  weeklyHours     Float? // ميزانية الوقت بالأسبوع
+  strategicGoalId String?
+  strategicGoal   StrategicGoal? @relation(fields: [strategicGoalId], references: [id], onDelete: SetNull)
+  metrics         Metric[] // للـ OKR = النتائج الرئيسية
+  supports        GoalSupport[]  @relation("supporter")
+  supportedBy     GoalSupport[]  @relation("supported")
+  planTasks       PlanTask[]
+  weeklyTasks     WeeklyTask[]
+  recurrences     Recurrence[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
+  @@unique([cycleId, rank]) // بيمنع OKR رابع حتى لو صار سباق (DDIA)
   @@index([cycleId])
 }
 
@@ -240,4 +277,79 @@ model PushSubscription {
   p256dh    String
   auth      String
   createdAt DateTime @default(now())
+}
+
+// ===== المرحلة 2: الاستراتيجية =====
+// النواة (Rumelt): التحدي ← السياسة الموجّهة ← النيّة الجوهرية
+model StrategyKernel {
+  cycleId          String   @id
+  cycle            Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  coreChallenge    String?
+  guidingPolicy    String?
+  guidingPolicyNot String?
+  essentialIntent  String?
+  freeHours        Float? // الساعات الحرة بالأسبوع (لحد ما ينبني تدقيق الوقت)
+  isDraft          Boolean  @default(false)
+  updatedAt        DateTime @updatedAt
+}
+
+// هدف استراتيجي لـ 3 سنين بمنظور
+model StrategicGoal {
+  id          String      @id @default(cuid())
+  perspective Perspective
+  title       String
+  horizonEnd  DateTime    @db.Date
+  order       Int         @default(0)
+  archived    Boolean     @default(false)
+  isDraft     Boolean     @default(false)
+  goals       Goal[]
+  metrics     Metric[]
+  createdAt   DateTime    @default(now())
+}
+
+// قائمة «لا» والتقصير الاستراتيجي (Essentialism)
+model NotDoing {
+  id        String   @id @default(cuid())
+  cycleId   String
+  cycle     Cycle    @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  pillarId  String?
+  pillar    Pillar?  @relation(fields: [pillarId], references: [id], onDelete: SetNull)
+  text      String
+  reason    String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// ===== المرحلة 2: القياس =====
+// المؤشر كيان مستقل (ADR-003): نتيجة رئيسية لـ OKR، أو مؤشر هدف صيانة، أو مؤشر هدف استراتيجي
+model Metric {
+  id              String          @id @default(cuid())
+  name            String
+  unit            String?
+  start           Float?
+  target          Float?
+  direction       KpiDirection
+  role            MetricRole      @default(LAGGING)
+  order           Int             @default(0)
+  goalId          String?
+  goal            Goal?           @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  strategicGoalId String?
+  strategicGoal   StrategicGoal?  @relation(fields: [strategicGoalId], references: [id], onDelete: Cascade)
+  readings        MetricReading[]
+  createdAt       DateTime        @default(now())
+
+  @@index([goalId])
+}
+
+// القراءات «إضافة وتعديل بس» (ADR-007)
+model MetricReading {
+  metricId  String
+  metric    Metric   @relation(fields: [metricId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  value     Float
+  note      String?
+  source    String   @default("MANUAL")
+  createdAt DateTime @default(now())
+
+  @@id([metricId, date])
 }

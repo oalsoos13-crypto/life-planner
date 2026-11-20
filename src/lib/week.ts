@@ -1,5 +1,6 @@
 import { prisma, getSettings } from "./db";
-import { addDays, todayYmd, toDate, toYmd, weekEnd, weekStartOf, type Ymd } from "./dates";
+import { addDays, todayYmd, toDate, toYmd, weekStartOf, type Ymd } from "./dates";
+import * as Exec from "@/modules/execution";
 import type { Prisma } from "@prisma/client";
 
 export async function getContext() {
@@ -9,10 +10,7 @@ export async function getContext() {
   return { settings, today, currentWeek };
 }
 
-// بقدر أعدّل الأسبوع الماضي والحالي والجاي بس
-export function isEditableWeek(ws: Ymd, currentWeek: Ymd) {
-  return ws === currentWeek || ws === addDays(currentWeek, -7) || ws === addDays(currentWeek, 7);
-}
+export const isEditableWeek = Exec.isEditableWeek;
 
 export async function assertEditableWeek(ws: Date | Ymd) {
   const { currentWeek } = await getContext();
@@ -61,8 +59,9 @@ export const taskInclude = {
 
 export type TaskWithRels = Prisma.WeeklyTaskGetPayload<{ include: typeof taskInclude }>;
 
+// محوّلات رفيعة: القاعدة بتخزّن Date، المجال بيشتغل بـ Ymd
 export function isOverdue(t: { status: string; cancelledAt: Date | null; weekStart: Date }, today: Ymd) {
-  return t.status !== "DONE" && !t.cancelledAt && weekEnd(toYmd(t.weekStart)) < today;
+  return Exec.isOverdue({ ...t, weekStart: toYmd(t.weekStart) }, today);
 }
 
 export async function getWeekTasks(ws: Ymd) {
@@ -74,16 +73,7 @@ export async function getWeekTasks(ws: Ymd) {
 }
 
 export function weekStats(tasks: { status: string; cancelledAt: Date | null; stuck: boolean; weekStart: Date }[], today: Ymd) {
-  const active = tasks.filter((t) => !t.cancelledAt);
-  const done = active.filter((t) => t.status === "DONE").length;
-  return {
-    total: active.length,
-    done,
-    stuck: active.filter((t) => t.stuck && t.status !== "DONE").length,
-    overdue: active.filter((t) => isOverdue(t, today)).length,
-    cancelled: tasks.length - active.length,
-    pct: active.length ? Math.round((done / active.length) * 100) : null,
-  };
+  return Exec.weekStats(tasks.map((t) => ({ ...t, weekStart: toYmd(t.weekStart) })), today);
 }
 
 export function toView(t: TaskWithRels, today: Ymd) {

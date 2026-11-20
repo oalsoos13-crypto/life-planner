@@ -4,15 +4,16 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/db";
-import { COOKIE, sessionToken } from "@/lib/auth";
+import { COOKIE, passwordMatches, sessionToken } from "@/lib/auth";
 import { assertEditableWeek, getContext } from "@/lib/week";
-import { addDays, isValidYmd, toDate, toYmd, weekStartOf } from "@/lib/dates";
+import { addDays, isValidYmd, toDate, toYmd } from "@/lib/dates";
 import type { Status } from "@prisma/client";
+import { clampProgress, normalizeWeekDay, recurrenceCollisions, remapWeekStart, statusAfterStep, statusPatch } from "@/modules/execution";
 
 // ===== الدخول =====
 export async function login(_prev: string | null, formData: FormData): Promise<string | null> {
   const pw = String(formData.get("password") || "");
-  if (!process.env.APP_PASSWORD || pw !== process.env.APP_PASSWORD) return "wrong";
+  if (!(await passwordMatches(pw))) return "wrong";
   (await cookies()).set(COOKIE, await sessionToken(), {
     httpOnly: true,
     sameSite: "lax",
@@ -40,9 +41,10 @@ async function editableTask(id: string) {
 }
 
 // لما المهمة مربوطة بخطوة من الخطة، حالتها بتمشي معها
-async function syncPlan(t: { planSubtaskId: string | null; planStepId: string | null }, status: Status) {
-  if (t.planStepId) await prisma.planStep.update({ where: { id: t.planStepId }, data: { status } });
-  if (t.planSubtaskId) await prisma.planSubtask.update({ where: { id: t.planSubtaskId }, data: { status } });
+type Tx = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
+async function syncPlan(tx: Tx, t: { planSubtaskId: string | null; planStepId: string | null }, status: Status) {
+  if (t.planStepId) await tx.planStep.update({ where: { id: t.planStepId }, data: { status } });
+  if (t.planSubtaskId) await tx.planSubtask.update({ where: { id: t.planSubtaskId }, data: { status } });
 }
 
 export async function createTask(input: { weekStart: string; title: string; goalId: string | null; repeat?: boolean }) {
@@ -79,7 +81,7 @@ export async function updateTask(
     clean.title = clean.title.trim();
     if (!clean.title) delete clean.title;
   }
-  if (clean.progress != null) clean.progress = Math.max(0, Math.min(100, Math.round(clean.progress)));
+  if (clean.progress != null) clean.progress = clampProgress(clean.progress);
   if (clean.imageData && clean.imageData.length > 1_500_000) throw new Error("الصورة كبيرة");
   await prisma.weeklyTask.update({ where: { id }, data: { ...clean, touchedAt: new Date() } });
   refresh();
@@ -87,17 +89,11 @@ export async function updateTask(
 
 export async function setStatus(id: string, status: Status) {
   const t = await editableTask(id);
-  await prisma.weeklyTask.update({
-    where: { id },
-    data: {
-      status,
-      completedAt: status === "DONE" ? new Date() : null,
-      // لما تخلص، علامة «عالقة» بتنشال لحالها
-      ...(status === "DONE" ? { stuck: false, stuckNote: null, progress: 100 } : {}),
-      touchedAt: new Date(),
-    },
+  // القواعد بالمجال (execution/domain/weeklyTask.ts)، والتغييرين بمعاملة وحدة
+  await prisma.$transaction(async (tx) => {
+    await tx.weeklyTask.update({ where: { id }, data: { ...statusPatch(status, new Date()), touchedAt: new Date() } });
+    await syncPlan(tx, t, status);
   });
-  await syncPlan(t, status);
   refresh();
 }
 
@@ -145,9 +141,7 @@ export async function toggleStep(stepId: string, done: boolean) {
   const t = await editableTask(s.taskId);
   await prisma.weeklyTaskStep.update({ where: { id: stepId }, data: { done } });
   // إذا بلّشت بالخطوات والمهمة لسا ما بلّشت، بتصير «ماشية»
-  const data: { touchedAt: Date; status?: Status } = { touchedAt: new Date() };
-  if (done && t.status === "NOT_STARTED") data.status = "IN_PROGRESS";
-  await prisma.weeklyTask.update({ where: { id: t.id }, data });
+  await prisma.weeklyTask.update({ where: { id: t.id }, data: { touchedAt: new Date(), status: statusAfterStep(t.status, done) } });
   refresh();
 }
 
@@ -196,28 +190,41 @@ export async function saveReview(weekStart: string, learned: string, top3: strin
 // ===== الإعدادات =====
 export async function updateSettings(data: { weekStartDay?: number; locale?: string; theme?: string }) {
   const { settings } = await getContext();
-  if (data.weekStartDay !== undefined && data.weekStartDay !== settings.weekStartDay) {
-    const day = Math.max(0, Math.min(6, Math.trunc(data.weekStartDay)));
-    // نحرّك المهام لبداية الأسبوع الجديدة
-    const tasks = await prisma.weeklyTask.findMany({ select: { id: true, weekStart: true } });
-    for (const t of tasks) {
-      const ws = weekStartOf(toYmd(t.weekStart), day);
-      await prisma.weeklyTask.update({ where: { id: t.id }, data: { weekStart: toDate(ws) } }).catch(() => {});
-    }
-    const recs = await prisma.recurrence.findMany();
-    for (const r of recs) {
-      await prisma.recurrence.update({
-        where: { id: r.id },
-        data: {
-          startWeek: toDate(weekStartOf(toYmd(r.startWeek), day)),
-          stoppedAt: r.stoppedAt ? toDate(weekStartOf(toYmd(r.stoppedAt), day)) : null,
-        },
-      });
-    }
-    data.weekStartDay = day;
-  }
   if (data.locale && !["ar", "en"].includes(data.locale)) delete data.locale;
   if (data.theme && !["system", "light", "dark"].includes(data.theme)) delete data.theme;
-  await prisma.settings.update({ where: { id: 1 }, data });
+  if (data.weekStartDay === undefined || normalizeWeekDay(data.weekStartDay) === settings.weekStartDay) {
+    delete data.weekStartDay;
+    await prisma.settings.update({ where: { id: 1 }, data });
+    refresh();
+    return;
+  }
+  const day = normalizeWeekDay(data.weekStartDay);
+  // كل التحريك بمعاملة وحدة: يا بيتحرك كل شي يا ولا شي (DDIA: الذرّية).
+  // وأي خطأ بيطلع واضح بدل ما ينبلع (Pragmatic: «البرامج الميتة ما بتكذب»).
+  await prisma.$transaction(
+    async (tx) => {
+      const tasks = await tx.weeklyTask.findMany({ select: { id: true, weekStart: true, recurrenceId: true, isAuto: true, touchedAt: true } });
+      const moved = tasks.map((t) => ({ ...t, newWeek: remapWeekStart(toYmd(t.weekStart), day), touched: !!t.touchedAt }));
+      const drop = new Set(recurrenceCollisions(moved));
+      if (drop.size) await tx.weeklyTask.deleteMany({ where: { id: { in: [...drop] } } });
+      // كل الأسابيع على نفس اليوم القديم بتنزاح بنفس المسافة، فما في أسبوعين بيوقعوا على بعض
+      for (const t of moved) {
+        if (drop.has(t.id) || t.newWeek === toYmd(t.weekStart)) continue;
+        await tx.weeklyTask.update({ where: { id: t.id }, data: { weekStart: toDate(t.newWeek) } });
+      }
+      const recs = await tx.recurrence.findMany();
+      for (const r of recs) {
+        await tx.recurrence.update({
+          where: { id: r.id },
+          data: {
+            startWeek: toDate(remapWeekStart(toYmd(r.startWeek), day)),
+            stoppedAt: r.stoppedAt ? toDate(remapWeekStart(toYmd(r.stoppedAt), day)) : null,
+          },
+        });
+      }
+      await tx.settings.update({ where: { id: 1 }, data: { ...data, weekStartDay: day } });
+    },
+    { timeout: 60000 }
+  );
   refresh();
 }

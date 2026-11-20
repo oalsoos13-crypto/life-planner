@@ -1,62 +1,42 @@
+// النسخ الاحتياطي v2: قائمة الجداول بتطلع لحالها من نماذج Prisma، فجدول جديد ما بينسى (ADR-008)
+import { Prisma } from "@prisma/client";
 import { prisma } from "./db";
+import { BACKUP_VERSION, dependencyOrder, parseBackup, sanitizeRows, selfRefFields, type BackupV2, type ModelInfo, type Row } from "@/platform/backup/format";
 
-// ترتيب الجداول حسب الاعتماد (للتصدير والاسترجاع)
-export async function dumpAll() {
-  return {
-    app: "life-planner",
-    version: 1,
-    exportedAt: new Date().toISOString(),
-    settings: await prisma.settings.findMany(),
-    cycles: await prisma.cycle.findMany(),
-    pillars: await prisma.pillar.findMany(),
-    goals: await prisma.goal.findMany(),
-    kpiReadings: await prisma.kpiReading.findMany(),
-    goalSupports: await prisma.goalSupport.findMany(),
-    planTasks: await prisma.planTask.findMany(),
-    planSubtasks: await prisma.planSubtask.findMany(),
-    planSteps: await prisma.planStep.findMany(),
-    recurrences: await prisma.recurrence.findMany(),
-    weeklyTasks: await prisma.weeklyTask.findMany({ orderBy: { createdAt: "asc" } }),
-    weeklyTaskSteps: await prisma.weeklyTaskStep.findMany(),
-    weekReviews: await prisma.weekReview.findMany(),
-    notifications: await prisma.notification.findMany(),
-  };
+const models = Prisma.dmmf.datamodel.models as unknown as ModelInfo[];
+const byName = new Map(models.map((m) => [m.name, m]));
+const ORDER = dependencyOrder(models);
+
+type Delegate = {
+  findMany: (a?: object) => Promise<Row[]>;
+  createMany: (a: { data: Row[] }) => Promise<unknown>;
+  deleteMany: () => Promise<unknown>;
+  update: (a: { where: Row; data: Row }) => Promise<unknown>;
+};
+const delegate = (client: object, model: string) => (client as Record<string, Delegate>)[model[0].toLowerCase() + model.slice(1)];
+
+export async function dumpAll(): Promise<BackupV2> {
+  const tables: Record<string, Row[]> = {};
+  for (const m of ORDER) tables[m] = await delegate(prisma, m).findMany();
+  return { app: "life-planner", version: BACKUP_VERSION, exportedAt: new Date().toISOString(), tables };
 }
 
-type Dump = Awaited<ReturnType<typeof dumpAll>>;
-
-export async function restoreAll(d: Dump) {
-  if (d?.app !== "life-planner") throw new Error("ملف مش صحيح");
-  // المهام المنقولة بتشير لبعض: منحطّها أول شي بدون الربط وبعدين منرجّعه
-  const tasks = d.weeklyTasks.map((t) => ({ ...t, carriedFromId: null }));
+export async function restoreAll(input: unknown) {
+  const d = parseBackup(input);
   await prisma.$transaction(
     async (tx) => {
-      await tx.weeklyTaskStep.deleteMany();
-      await tx.weeklyTask.deleteMany();
-      await tx.recurrence.deleteMany();
-      await tx.weekReview.deleteMany();
-      await tx.notification.deleteMany();
-      await tx.cycle.deleteMany(); // بيمسح الأهداف والخطة معها
-      await tx.pillar.deleteMany();
-      await tx.settings.deleteMany();
-      await tx.settings.createMany({ data: d.settings });
-      await tx.cycle.createMany({ data: d.cycles.map((c) => ({ ...c, snapshot: c.snapshot ?? undefined })) });
-      await tx.pillar.createMany({ data: d.pillars });
-      await tx.goal.createMany({ data: d.goals });
-      await tx.kpiReading.createMany({ data: d.kpiReadings });
-      await tx.goalSupport.createMany({ data: d.goalSupports });
-      await tx.planTask.createMany({ data: d.planTasks });
-      await tx.planSubtask.createMany({ data: d.planSubtasks });
-      await tx.planStep.createMany({ data: d.planSteps });
-      await tx.recurrence.createMany({ data: d.recurrences.map((r) => ({ ...r, steps: r.steps ?? undefined })) });
-      await tx.weeklyTask.createMany({ data: tasks });
-      for (const t of d.weeklyTasks.filter((t) => t.carriedFromId)) {
-        await tx.weeklyTask.update({ where: { id: t.id }, data: { carriedFromId: t.carriedFromId } });
+      // الابن قبل الأب بالحذف، والأب قبل الابن بالإضافة
+      for (const m of [...ORDER].reverse()) await delegate(tx, m).deleteMany();
+      for (const m of ORDER) {
+        const info = byName.get(m)!;
+        const self = selfRefFields(info);
+        const rows = sanitizeRows(info, d.tables[m] ?? []);
+        // العلاقات الذاتية: منحطّ الصفوف بدون الربط، وبعدين منرجّعه
+        await delegate(tx, m).createMany({ data: rows.map((r) => (self.length ? { ...r, ...Object.fromEntries(self.map((f) => [f, null])) } : r)) });
+        for (const f of self)
+          for (const r of rows.filter((r) => r[f] != null)) await delegate(tx, m).update({ where: { id: r.id }, data: { [f]: r[f] } });
       }
-      await tx.weeklyTaskStep.createMany({ data: d.weeklyTaskSteps });
-      await tx.weekReview.createMany({ data: d.weekReviews.map((r) => ({ ...r, top3: r.top3 ?? undefined })) });
-      await tx.notification.createMany({ data: d.notifications });
     },
-    { timeout: 60000 }
+    { timeout: 120000 }
   );
 }
