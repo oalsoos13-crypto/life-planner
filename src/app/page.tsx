@@ -1,15 +1,19 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
-import { StatsRow } from "@/components/StatsRow";
-import { getDict } from "@/lib/i18n";
+import { NextStep } from "@/components/home/NextStep";
+import { Ring } from "@/components/ui/Ring";
+import { Dot } from "@/components/ui/Dot";
 import { prisma } from "@/lib/db";
-import { addDays, dayOfWeek, formatDay, toDate, toYmd } from "@/lib/dates";
+import { addDays, dayOfWeek, toDate, toYmd } from "@/lib/dates";
 import { ensureRecurrences, getContext, getWeekTasks, weekStats } from "@/lib/week";
+import { pickNextStep } from "@/modules/execution";
+import { getStrategyView } from "@/modules/strategy/server";
+import { relativeDay } from "@/shared/kernel/relative";
 
+// الرئيسية (دليل الواجهات §10.1): بتجاوب «شو أعمل هلأ؟» أول شي، وبعدين الأولويات والأسبوع بسطر.
 export default async function Home() {
   const { settings, today, currentWeek } = await getContext();
-  const t = getDict(settings.locale);
   const prevWeek = addDays(currentWeek, -7);
 
   // يوم بداية الأسبوع: أول فتحة بتوديك على مراجعة الأسبوع الماضي
@@ -27,96 +31,131 @@ export default async function Home() {
 
   await ensureRecurrences(currentWeek);
   const todayD = toDate(today);
-  const [tasks, prevTasks, cycle, subs, steps] = await Promise.all([
+  const [tasks, nextWeekTasks, strategy, subs] = await Promise.all([
     getWeekTasks(currentWeek),
-    getWeekTasks(prevWeek),
-    prisma.cycle.findFirst({
-      where: { OR: [{ startDate: { lte: todayD }, endDate: { gte: todayD } }, { startDate: { gt: todayD } }] },
-      orderBy: { startDate: "asc" },
-      include: { goals: { where: { archived: false }, include: { pillar: true } } },
-    }),
+    getWeekTasks(addDays(currentWeek, 7)),
+    getStrategyView(today),
     prisma.planSubtask.findMany({
-      where: { dueDate: { gte: todayD }, status: { not: "DONE" }, steps: { none: {} } },
+      where: { dueDate: { gte: todayD }, status: { not: "DONE" } },
       include: { planTask: { include: { goal: { include: { pillar: true } } } } },
       orderBy: { dueDate: "asc" },
-      take: 5,
-    }),
-    prisma.planStep.findMany({
-      where: { dueDate: { gte: todayD }, status: { not: "DONE" } },
-      include: { subtask: { include: { planTask: { include: { goal: { include: { pillar: true } } } } } } },
-      orderBy: { dueDate: "asc" },
-      take: 5,
+      take: 3,
     }),
   ]);
   const stats = weekStats(tasks, today);
-  // المتأخر من الأسبوع الماضي كمان
-  stats.overdue += weekStats(prevTasks, today).overdue;
+  const rankOf = new Map(strategy?.okrs.map((o) => [o.id, o.rank]) ?? []);
+  const candidates = (list: typeof tasks) =>
+    list.map((t) => ({ ...t, cancelled: !!t.cancelledAt, okrRank: (t.goalId && rankOf.get(t.goalId)) || null, hasGoal: !!t.goalId }));
+  // إذا هالأسبوع فاضي (مثلاً قبل ما يبلّش الربع)، منجيب الخطوة من الأسبوع الجاي
+  const nowNext = pickNextStep(candidates(tasks));
+  const next = nowNext ?? pickNextStep(candidates(nextWeekTasks));
+  const fromNextWeek = !nowNext && !!next;
 
-  const upcoming = [
-    ...subs.map((s) => ({ id: s.id, title: s.title, due: toYmd(s.dueDate!), goal: s.planTask.goal.title, color: s.planTask.goal.pillar.color })),
-    ...steps.map((s) => ({ id: s.id, title: `${s.subtask.title}: ${s.title}`, due: toYmd(s.dueDate!), goal: s.subtask.planTask.goal.title, color: s.subtask.planTask.goal.pillar.color })),
-  ]
-    .sort((a, b) => a.due.localeCompare(b.due))
-    .slice(0, 5);
-
-  const pillars = new Map<string, { name: string; color: string; count: number; order: number }>();
-  for (const g of cycle?.goals ?? []) {
-    const p = pillars.get(g.pillarId) ?? { name: g.pillar.name, color: g.pillar.color, count: 0, order: g.pillar.order };
-    p.count++;
-    pillars.set(g.pillarId, p);
-  }
+  // التحية حسب ساعة الكويت
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: settings.timezone }).format(new Date()));
+  const greeting = hour < 12 ? "صباح الخير يا عمر" : "مسا الخير يا عمر";
+  const sub = strategy ? (strategy.cycle.started ? `الأسبوع ${strategy.cycle.weekNo} من 13` : `الربع بيبلّش ${relativeDay(strategy.cycle.start, today)}`) : undefined;
+  const reviewDay = [5, 6].includes(dayOfWeek(today));
 
   return (
-    <Shell
-      title={t.appName}
-      action={<Link href={`/week/${currentWeek}?add=1`} className="btn btn-primary">+ {t.addTaskThisWeek}</Link>}
-    >
-      <div className="space-y-4">
-        <section>
-          <div className="mb-2 flex items-baseline justify-between">
-            <h2 className="font-bold">{t.thisWeek}</h2>
-            <Link href={`/week/${currentWeek}`} className="text-sm text-accent">{t.week}</Link>
+    <Shell title={greeting} subtitle={sub}>
+      <div className="space-y-6">
+        <NextStep
+          weekHref={`/week/${currentWeek}`}
+          task={
+            next && {
+              id: next.id,
+              title: next.title,
+              goal: next.goal?.title ?? null,
+              pillar: next.goal?.pillar.name ?? null,
+              color: next.goal?.pillar.color ?? null,
+              okrRank: next.okrRank,
+            }
+          }
+          label={fromNextWeek ? "الخطوة الجاية · من الأسبوع الجاي" : undefined}
+        />
+
+        {/* الأسبوع بسطر واحد، مش بطاقة أرقام (§9.1) */}
+        <Link href={`/week/${currentWeek}`} className="card block p-4 active:bg-surface-2">
+          <div className="flex items-baseline justify-between">
+            <span className="font-bold">هالأسبوع</span>
+            <span className="tnum text-[15px] text-muted">
+              {stats.total === 0 ? "ما في مهام لسا" : stats.done === 0 ? `${stats.total} مهمة · ابدأ بأول وحدة` : <><bdi className="font-bold text-ink">{stats.done}</bdi> من <bdi>{stats.total}</bdi> خلصوا</>}
+            </span>
           </div>
-          <StatsRow t={t} s={stats} />
-        </section>
+          {stats.total > 0 && <div className="bar mt-2"><span style={{ width: `${stats.pct ?? 0}%` }} /></div>}
+          {(stats.stuck > 0 || stats.overdue > 0) && (
+            <p className="mt-2 text-[15px] text-warning">
+              {stats.stuck > 0 && `⚠ ${stats.stuck} عالقة`} {stats.overdue > 0 && `⏰ ${stats.overdue} متأخرة`}
+            </p>
+          )}
+        </Link>
 
-        <section className="card p-4">
-          <h2 className="mb-3 font-bold">{t.upcoming}</h2>
-          <ul className="space-y-3">
-            {upcoming.map((u) => (
-              <li key={u.id} className="flex items-start gap-3">
-                <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: u.color }} />
-                <div className="min-w-0 flex-1">
-                  <div className="font-semibold leading-snug">{u.title}</div>
-                  <div className="text-xs text-muted">{u.goal}</div>
-                </div>
-                <span className={`shrink-0 text-sm ${u.due === today ? "font-bold text-red-600" : "text-muted"}`}>
-                  {u.due === today ? t.dueToday : formatDay(u.due, settings.locale)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+        {reviewDay && (
+          <Link href={`/review/${currentWeek}`} className="card flex items-center gap-3 p-4 active:bg-surface-2">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full bg-gold-soft text-gold" aria-hidden>◆</span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">مراجعة الأسبوع جاهزة</span>
+              <span className="block text-[15px] text-muted">10 دقائق، وبتطلع بخطة أخف</span>
+            </span>
+            <span className="text-muted" aria-hidden>‹</span>
+          </Link>
+        )}
 
-        <section className="card p-4">
-          <div className="mb-3 flex items-baseline justify-between">
-            <h2 className="font-bold">{t.pillars}</h2>
-            {cycle && <span className="text-xs text-muted">{cycle.name}</span>}
-          </div>
-          <ul className="grid grid-cols-2 gap-2">
-            {[...pillars.values()].sort((a, b) => a.order - b.order).map((p) => (
-              <li key={p.name} className="flex items-center gap-2 rounded-xl bg-bg px-3 py-2.5 text-sm">
-                <span className="h-3 w-3 rounded-full" style={{ background: p.color }} />
-                <span className="flex-1 truncate font-semibold">{p.name}</span>
-                <span className="text-xs text-muted">{p.count}</span>
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 text-xs text-muted">{t.scoresSoon}</p>
-        </section>
+        {strategy && strategy.okrs.length > 0 && (
+          <section aria-labelledby="okrs-h">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 id="okrs-h" className="text-[20px] font-bold">أولويات الربع</h2>
+              <Link href="/strategy" className="btn btn-text btn-sm -me-2">الاستراتيجية ‹</Link>
+            </div>
+            {strategy.kernel?.essentialIntent && (
+              <p className="mb-3 border-s-2 border-gold-deco ps-3 text-[15px] font-bold leading-relaxed text-gold">{strategy.kernel.essentialIntent}</p>
+            )}
+            <ul className="card divide-y divide-line">
+              {strategy.okrs.map((o) => (
+                <li key={o.id}>
+                  <Link href="/strategy" className="flex items-center gap-3 p-4 active:bg-surface-2">
+                    <Ring value={o.score} size={44} />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold leading-snug">{o.title}</div>
+                      <div className="flex items-center gap-1.5 text-[15px] text-muted">
+                        <Dot color={o.pillar.color} /> {o.pillar.name} · {o.krs.length} نتائج
+                      </div>
+                    </div>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-        <Link href={`/review/${prevWeek}`} className="block py-2 text-center text-sm text-accent">{t.openReview}</Link>
+        {subs.length > 0 && (
+          <section aria-labelledby="up-h">
+            <h2 id="up-h" className="mb-2 text-[20px] font-bold">جاي من الخطة</h2>
+            <ul className="card divide-y divide-line">
+              {subs.map((s) => (
+                <li key={s.id} className="flex items-center gap-3 p-4">
+                  <Dot color={s.planTask.goal.pillar.color} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-bold leading-snug">{s.title}</div>
+                    <div className="text-[15px] text-muted">{s.planTask.goal.title}</div>
+                  </div>
+                  <span className={`shrink-0 text-[15px] ${toYmd(s.dueDate!) === today ? "font-bold text-warning" : "text-muted"}`}>{relativeDay(toYmd(s.dueDate!), today)}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
       </div>
+
+      {/* زر عائم قريب من الإبهام (Fitts) */}
+      <Link
+        href={`/week/${currentWeek}?add=1`}
+        aria-label="أضف مهمة لهالأسبوع"
+        className="fixed bottom-[calc(env(safe-area-inset-bottom)+5.5rem)] end-4 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-accent text-3xl text-on-accent shadow-[var(--shadow-md)] transition active:scale-95"
+      >
+        +
+      </Link>
     </Shell>
   );
 }

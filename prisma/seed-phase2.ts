@@ -4,7 +4,26 @@ import { PrismaClient, type Perspective } from "@prisma/client";
 
 const D = (s: string) => new Date(s + "T00:00:00.000Z");
 
+// باليتة المحاور الجديدة (دليل الواجهات §3.3). بتغيّر اللون بس إذا لسا اللون القديم الافتراضي،
+// فإذا إنت غيّرته بإيدك ما بتلمسه.
+const PALETTE: Record<string, [string, string]> = {
+  "«المجدّد»": ["#059669", "#0f766e"],
+  "المال": ["#d97706", "#a87b00"],
+  "الصحة": ["#e11d48", "#d03b3b"],
+  "العمل": ["#2563eb", "#2f6fdb"],
+  "العلاقات": ["#db2777", "#c23b78"],
+  "الروحانيات": ["#0d9488", "#4d7c0f"],
+  "التعلّم": ["#4f46e5", "#7c3aed"],
+  "الهوايات": ["#9333ea", "#d9601f"],
+};
+
+export async function applyPalette(prisma: PrismaClient) {
+  for (const [name, [oldC, newC]] of Object.entries(PALETTE))
+    await prisma.pillar.updateMany({ where: { name, color: oldC }, data: { color: newC } });
+}
+
 export async function seedPhase2(prisma: PrismaClient) {
+  await applyPalette(prisma);
   const cycle = await prisma.cycle.findFirst({ where: { status: "ACTIVE" }, orderBy: { startDate: "asc" } });
   if (!cycle) return console.log("ما في دورة نشطة، ما في مسودة استراتيجية.");
   if (await prisma.strategyKernel.findUnique({ where: { cycleId: cycle.id } })) {

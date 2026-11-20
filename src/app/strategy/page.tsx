@@ -1,47 +1,64 @@
 import { Shell } from "@/components/Shell";
-import { getDict } from "@/lib/i18n";
-import { prisma } from "@/lib/db";
+import { KernelCard } from "@/components/strategy/KernelCard";
+import { AuditCard } from "@/components/strategy/AuditCard";
+import { OkrCard } from "@/components/strategy/OkrCard";
+import { StrategicGoals } from "@/components/strategy/StrategicGoals";
+import { NotDoing } from "@/components/strategy/NotDoing";
+import { Maintenance } from "@/components/strategy/Maintenance";
+import { TimeBudget } from "@/components/strategy/TimeBudget";
+import { ConfirmDraft } from "@/components/strategy/ConfirmDraft";
+import { MAX_ACTIVE_OKRS } from "@/modules/strategy";
+import { getStrategyView } from "@/modules/strategy/server";
 import { getContext } from "@/lib/week";
+import { formatDay } from "@/lib/dates";
 
-// نظرة للقراءة بس على الخطة المحمّلة. التعديل والنسب بالمرحلة الثانية.
-export default async function StrategyPreview() {
-  const { settings } = await getContext();
-  const t = getDict(settings.locale);
-  const ar = settings.locale === "ar";
-  const pillars = await prisma.pillar.findMany({
-    where: { archived: false },
-    orderBy: { order: "asc" },
-    include: { goals: { where: { archived: false }, orderBy: { order: "asc" }, include: { supports: { include: { to: true } } } } },
-  });
+// شاشة الاستراتيجية (منهجية §5.3 ج): النواة فوق، بعدين الفحص، الأولويات، الخريطة، قائمة «لا»، والصيانة.
+export default async function StrategyPage() {
+  const { today, settings } = await getContext();
+  const v = await getStrategyView(today);
+  if (!v) return <Shell title="الاستراتيجية"><p className="py-10 text-center text-muted">ما في دورة لسا.</p></Shell>;
+
+  const sub = v.cycle.started ? `الأسبوع ${v.cycle.weekNo} من 13` : `بتبلّش ${formatDay(v.cycle.start, settings.locale, { day: "numeric", month: "long" })}`;
+
   return (
-    <Shell title={t.strategy}>
-      <p className="mb-4 rounded-xl bg-amber-50 p-3 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-        {ar ? "هاي نظرة على خطتك المحمّلة. التعديل والنسب والخريطة جايين بالمراحل الجاية." : "Read-only preview of your plan. Editing and scores come in the next phases."}
-      </p>
-      <div className="space-y-3">
-        {pillars.map((p) => (
-          <section key={p.id} className="card overflow-hidden">
-            <h2 className="flex items-center gap-2 px-4 py-3 font-bold" style={{ borderInlineStart: `5px solid ${p.color}` }}>{p.name}</h2>
-            <ul className="divide-y divide-line border-t border-line">
-              {p.goals.map((g) => (
-                <li key={g.id} className="px-4 py-3 text-sm">
-                  <div className="flex items-start justify-between gap-2">
-                    <span className="font-semibold">{g.title}</span>
-                    <span className="shrink-0 text-xs text-muted">{"●".repeat(g.weight)}</span>
-                  </div>
-                  {g.kpiName && (
-                    <div className="mt-1 text-xs text-muted">
-                      📈 {g.kpiName}: {g.kpiStart ?? "؟"} {g.kpiDirection === "DOWN" ? "↘" : "↗"} {g.kpiTarget ?? "؟"} {g.kpiUnit}
-                    </div>
-                  )}
-                  {g.supports.length > 0 && (
-                    <div className="mt-1 text-xs text-muted">{ar ? "بيدعم" : "Supports"}: {g.supports.map((s) => s.to.title).join("، ")}</div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </section>
-        ))}
+    <Shell title="الاستراتيجية" subtitle={`${v.cycle.name} · ${sub}`}>
+      <div className="space-y-6">
+        {v.kernel?.isDraft && <ConfirmDraft cycleId={v.cycle.id} />}
+        <KernelCard cycleId={v.cycle.id} kernel={v.kernel} />
+        <AuditCard warnings={v.warnings} />
+
+        <section className="space-y-3" aria-labelledby="okr-h">
+          <div className="flex items-baseline justify-between">
+            <h2 id="okr-h" className="text-[20px] font-bold">أولويات الربع</h2>
+            <span className="tnum text-[15px] text-muted"><bdi>{v.okrs.length}</bdi> من <bdi>{MAX_ACTIVE_OKRS}</bdi></span>
+          </div>
+          {v.okrs.length === 0 && (
+            <div className="card p-6 text-center">
+              <p className="font-bold">ما في أولويات نشطة لسا</p>
+              <p className="text-[15px] text-muted">افتح «أهداف الصيانة» تحت ورقّي 1-3 أهداف.</p>
+            </div>
+          )}
+          {v.okrs.map((o) => <OkrCard key={o.id} okr={o} sgs={v.strategicGoals} />)}
+          <TimeBudget cycleId={v.cycle.id} free={v.kernel?.freeHours ?? null} planned={v.plannedHours} />
+        </section>
+
+        <section className="space-y-3" aria-labelledby="sg-h">
+          <div>
+            <h2 id="sg-h" className="text-[20px] font-bold">خريطة الاستراتيجية: 3 سنين</h2>
+            <p className="text-[15px] text-muted">4-6 أهداف على 4 منظورات. كل أولوية لازم تخدم وحدة منها.</p>
+          </div>
+          <StrategicGoals sgs={v.strategicGoals} okrs={v.okrs} />
+        </section>
+
+        <section className="space-y-3" aria-labelledby="no-h">
+          <div>
+            <h2 id="no-h" className="text-[20px] font-bold">قائمة «لا»</h2>
+            <p className="text-[15px] text-muted">الي رح تتركه أو تقصّر فيه عن قصد هالربع.</p>
+          </div>
+          <NotDoing cycleId={v.cycle.id} items={v.notDoing} />
+        </section>
+
+        <Maintenance goals={v.maintenance} okrs={v.okrs} />
       </div>
     </Shell>
   );
