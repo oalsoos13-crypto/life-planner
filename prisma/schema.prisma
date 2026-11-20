@@ -392,11 +392,53 @@ model HabitCheck {
 
 // صندوق الالتقاط: كل شي بتحكيه أو بتكتبه بسرعة. المستشار بيفرزه لحاله بمرحلته
 model Capture {
-  id          String    @id @default(cuid())
+  id          String        @id @default(cuid())
   text        String
-  source      String    @default("TEXT") // TEXT | VOICE
+  source      String        @default("TEXT") // TEXT | VOICE
   processedAt DateTime?
-  createdAt   DateTime  @default(now())
+  analyzer    String? // CLAUDE | RULES (لما ما في مفتاح)
+  error       String?
+  items       CaptureItem[]
+  createdAt   DateTime      @default(now())
 
   @@index([processedAt])
+}
+
+// كل شي استخرجه المستشار من كلامك وطبّقه لحاله، مع اللي بيلزم للتراجع (Command pattern)
+model CaptureItem {
+  id        String    @id @default(cuid())
+  captureId String
+  capture   Capture   @relation(fields: [captureId], references: [id], onDelete: Cascade)
+  kind      String // TASK | HABIT | EXPENSE | METRIC | ENERGY | MOOD | NOTE
+  summary   String
+  chain     String? // «مهمة ← أولوية ١ ← هدف ← رؤية»
+  refType   String?
+  refId     String?
+  undo      Json?
+  undoneAt  DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([createdAt])
+}
+
+model Expense {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  amount    Float
+  currency  String   @default("KWD")
+  category  String
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([date])
+}
+
+// محادثة المستشار (بتنحفظ عشان يتذكّر)
+model AdvisorMessage {
+  id        String   @id @default(cuid())
+  role      String // user | assistant
+  text      String
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
 }

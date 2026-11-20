@@ -15,6 +15,8 @@ import { getStrategyView } from "@/modules/strategy/server";
 import { relativeDay, daysBetween } from "@/shared/kernel/relative";
 import { blocksForDay, fmtMinute, greeting as greet, hijriDay, hijriLabel, nextRamadan, nowInDay, parseBlocks } from "@/modules/daily";
 import { getKpiStrip, getToday } from "@/modules/daily/server";
+import { advisorConnected, getTodayLog } from "@/modules/advisor/server";
+import { CaptureLog } from "@/components/advisor/CaptureLog";
 
 // «اليوم» (مخطط المنتج، محرك التنفيذ اليومي؛ دليل الواجهات §10.1):
 // النية ← الخطوة الجاية بوقتها ← يومك ← الطاقة والعادات ← أرقام الربع ← مراجعة المسا.
@@ -37,7 +39,7 @@ export default async function Home() {
 
   await ensureRecurrences(currentWeek);
   const todayD = toDate(today);
-  const [tasks, nextWeekTasks, strategy, subs, day, pillars] = await Promise.all([
+  const [tasks, nextWeekTasks, strategy, subs, day, log, pillars] = await Promise.all([
     getWeekTasks(currentWeek),
     getWeekTasks(addDays(currentWeek, 7)),
     getStrategyView(today),
@@ -48,6 +50,7 @@ export default async function Home() {
       take: 3,
     }),
     getToday(today),
+    getTodayLog(today),
     prisma.pillar.findMany({ where: { archived: false }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
   ]);
   const kpis = strategy ? await getKpiStrip(strategy.cycle.id) : [];
@@ -167,6 +170,23 @@ export default async function Home() {
             </ul>
           </section>
         )}
+
+        <section aria-labelledby="log-h">
+          <div className="mb-2 flex items-baseline justify-between">
+            <h2 id="log-h" className="font-display text-[23px] font-bold">شو انسجّل اليوم</h2>
+            <span className="text-[12.5px] text-muted">من كلامك، لحاله</span>
+          </div>
+          <CaptureLog items={log} empty="لسا ما حكيت شي اليوم. اكبس المايك تحت واحكي عن يومك، والمستشار بيفرزه ويربطه بأهدافك." />
+        </section>
+
+        <Link href="/advisor" className="card flex items-center gap-3 p-4 active:bg-surface-2">
+          <span className="shrink-0"><Planet id="adv-mini" r={20} light="#ffffff" base="#7b66ff" band="#fff" ring /></span>
+          <span className="min-w-0 flex-1">
+            <span className="block font-display text-[20px] font-bold">مستشارك</span>
+            <span className="block text-[14px] text-muted">{advisorConnected() ? "اسأله عن قرار، أولوية، أو شو تعمل بوقتك الفاضي" : "جاهز، وبيستنى مفتاح Claude لينوصل"}</span>
+          </span>
+          <span className="text-muted" aria-hidden>‹</span>
+        </Link>
 
         {evening && <EveningCard evening={day.evening} />}
       </div>
