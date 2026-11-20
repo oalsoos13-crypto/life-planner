@@ -1,7 +1,12 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { askAdvisor } from "@/app/today/actions";
+import { Avatar3D } from "@/components/avatar/Avatar3D";
+import { canListen, canSpeak, listenOnce, newDriver, speak } from "@/components/avatar/speech";
+
+const GREETING = "أهلا عمر. أنا مستشارك. بعرف أولوياتك وأرقامك ويومك، واسألني أي شي: قرار، أولوية، أو شو تعمل بوقتك الفاضي.";
+const VOICE_KEY = "advisor-voice";
 
 type Msg = { id: string; role: "user" | "assistant"; text: string };
 
@@ -13,12 +18,49 @@ const STARTERS = [
 ];
 
 /** محادثة المستشار: جواب أو قرار أول شي، وبعدين السبب، مع المرجع (المخطط: المستشار) */
-export function AdvisorChat({ initial, connected }: { initial: Msg[]; connected: boolean }) {
+export function AdvisorChat({ initial, connected, modelUrl }: { initial: Msg[]; connected: boolean; modelUrl?: string }) {
   const [msgs, setMsgs] = useState<Msg[]>(initial);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const end = useRef<HTMLDivElement>(null);
+  // الشخصية: صوت وشفايف (المخطط: المرحلة 4)
+  const driver = useRef(newDriver()).current;
+  const stopVoice = useRef<() => void>(() => {});
+  const stopEar = useRef<() => void>(() => {});
+  const [mode, setMode] = useState<"idle" | "speaking" | "listening">("idle");
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [can, setCan] = useState({ speak: false, listen: false }); // بعد التحميل بس، عشان ما يختلف عن السيرفر
+  useEffect(() => {
+    setCan({ speak: canSpeak(), listen: canListen() });
+    try { setVoiceOn(localStorage.getItem(VOICE_KEY) !== "off"); } catch {}
+    // أندرويد بيحمّل الأصوات متأخر
+    if (canSpeak()) window.speechSynthesis.getVoices();
+    return () => { stopVoice.current(); stopEar.current(); };
+  }, []);
+  const toggleVoice = () => {
+    const v = !voiceOn;
+    setVoiceOn(v);
+    if (!v) stopVoice.current();
+    try { localStorage.setItem(VOICE_KEY, v ? "on" : "off"); } catch {}
+  };
+  const say = (text: string) => {
+    if (!can.speak) return;
+    stopVoice.current();
+    setMode("speaking");
+    stopVoice.current = speak(text, driver, () => setMode("idle"));
+  };
+  const hear = () => {
+    stopVoice.current();
+    setError(null);
+    driver.listening = true;
+    setMode("listening");
+    stopEar.current = listenOnce(
+      (t) => setQ(t),
+      (t) => { driver.listening = false; setMode("idle"); if (t) send(t); },
+      (m) => { driver.listening = false; setMode("idle"); setError(m); },
+    );
+  };
 
   const send = (text: string) => {
     const t = text.trim();
@@ -28,7 +70,10 @@ export function AdvisorChat({ initial, connected }: { initial: Msg[]; connected:
     setMsgs((m) => [...m, { id: `u${Date.now()}`, role: "user", text: t }]);
     start(async () => {
       const r = await askAdvisor(t);
-      if (r.ok) setMsgs((m) => [...m, { id: `a${Date.now()}`, role: "assistant", text: r.answer }]);
+      if (r.ok) {
+        setMsgs((m) => [...m, { id: `a${Date.now()}`, role: "assistant", text: r.answer }]);
+        if (voiceOn) say(r.answer);
+      }
       else setError(r.message);
       requestAnimationFrame(() => end.current?.scrollIntoView({ behavior: "smooth" }));
     });
@@ -36,6 +81,24 @@ export function AdvisorChat({ initial, connected }: { initial: Msg[]; connected:
 
   return (
     <div className="space-y-4">
+      <section className="hero-card !p-0 overflow-hidden">
+        <Avatar3D driver={driver} modelUrl={modelUrl} className="relative z-[1] h-[280px] w-full" />
+        <div className="relative z-[1] flex items-center gap-2 px-4 pb-4">
+          <p className="min-w-0 flex-1 text-[14px] text-white/80" aria-live="polite">
+            {mode === "speaking" ? "عم يحكي…" : mode === "listening" ? "عم يسمعك… احكي" : pending ? "عم يفكّر…" : "اكبس المايك واسأله بصوتك"}
+          </p>
+          {mode === "speaking" ? (
+            <button type="button" className="btn btn-sm" onClick={() => { stopVoice.current(); setMode("idle"); }}><Icon name="Pause" size={16} /> وقّف</button>
+          ) : (
+            <button type="button" className="btn btn-sm" onClick={() => say(msgs.findLast((m) => m.role === "assistant")?.text ?? GREETING)} disabled={!can.speak}>
+              <Icon name="Sparkles" size={16} /> {msgs.some((m) => m.role === "assistant") ? "عيد" : "سلّم"}
+            </button>
+          )}
+          <button type="button" className="btn btn-sm h-10 w-10 p-0" onClick={toggleVoice} aria-pressed={voiceOn} aria-label={voiceOn ? "اسكّت الصوت" : "شغّل الصوت"}>
+            <Icon name={voiceOn ? "Volume2" : "VolumeX"} size={17} />
+          </button>
+        </div>
+      </section>
       {!connected && (
         <p className="card p-4 text-[14px] leading-relaxed text-warning">
           المستشار جاهز بالكود، بس لسا مش موصول. بس ينحط مفتاح Claude بإعدادات السيرفر، بيصير يجاوبك ويحلّل كلامك بعمق.
@@ -59,6 +122,11 @@ export function AdvisorChat({ initial, connected }: { initial: Msg[]; connected:
               }`}
             >
               {m.text}
+              {m.role === "assistant" && can.speak && (
+                <button type="button" className="mt-1 flex items-center gap-1 text-[13px] text-muted" onClick={() => say(m.text)}>
+                  <Icon name="Volume2" size={14} /> اسمع
+                </button>
+              )}
             </div>
           </li>
         ))}
@@ -85,9 +153,15 @@ export function AdvisorChat({ initial, connected }: { initial: Msg[]; connected:
           aria-label="سؤالك للمستشار"
           className="max-h-40 min-h-11 flex-1 resize-none border-0 bg-transparent"
         />
+        {can.listen && !q.trim() ? (
+          <button type="button" onClick={hear} disabled={pending || !connected || mode === "listening"} className="orb flex h-11 w-11 shrink-0 items-center justify-center rounded-full disabled:opacity-40" aria-label="اسأل بصوتك">
+            <Icon name="Mic" size={18} />
+          </button>
+        ) : (
         <button type="submit" className="orb flex h-11 w-11 shrink-0 items-center justify-center rounded-full disabled:opacity-40" disabled={!q.trim() || pending || !connected} aria-label="ابعت">
           <Icon name="Send" size={18} />
         </button>
+        )}
       </form>
     </div>
   );

@@ -17,7 +17,7 @@ export default async function AdvisorPage() {
       art={<div className="-mt-6 -ml-10"><Planet id="adv-p" r={56} light="#ffffff" base="#7b66ff" band="#fff" ring /></div>}
       action={<Link href="/me" aria-label="شو بيعرف عني" className="btn btn-sm h-11 w-11 p-0"><Icon name="Brain" size={20} /></Link>}
     >
-      <AdvisorChat initial={thread} connected={advisorConnected()} />
+      <AdvisorChat initial={thread} connected={advisorConnected()} modelUrl={process.env.AVATAR_MODEL_URL ? "/api/avatar" : undefined} />
     </Shell>
   );
 }
