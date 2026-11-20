@@ -13,7 +13,24 @@ export async function sessionToken(): Promise<string> {
   return hmac("session:" + (process.env.APP_PASSWORD || ""));
 }
 
+// مقارنة ثابتة الوقت (ما بتكشف كم حرف صح من سرعة الرد)
+export function safeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const x = enc.encode(a), y = enc.encode(b);
+  let diff = x.length ^ y.length;
+  for (let i = 0; i < Math.max(x.length, y.length); i++) diff |= (x[i] ?? 0) ^ (y[i] ?? 0);
+  return diff === 0;
+}
+
+export async function passwordMatches(pw: string): Promise<boolean> {
+  const real = process.env.APP_PASSWORD;
+  if (!real) return false;
+  // منقارن البصمات مش النص نفسه، فطول كلمة السر ما بيبيّن
+  return safeEqual(await hmac("pw:" + pw), await hmac("pw:" + real));
+}
+
+// الرمز مشتق من كلمة السر، فلما تبدّلها كل الجلسات القديمة بتسقط لحالها
 export async function isValidToken(token: string | undefined): Promise<boolean> {
   if (!token || !process.env.APP_PASSWORD) return false;
-  return token === (await sessionToken());
+  return safeEqual(token, await sessionToken());
 }

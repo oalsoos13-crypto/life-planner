@@ -1,5 +1,6 @@
 // خطة عمر المعتمدة (الدورة الأولى). بيشتغل مرة وحدة بس: إذا في دورة موجودة ما بيعمل شي.
 import { PrismaClient, KpiDirection } from "@prisma/client";
+import { seedPhase2 } from "./seed-phase2";
 
 const prisma = new PrismaClient();
 const D = (s: string) => new Date(s + "T00:00:00.000Z");
@@ -352,6 +353,7 @@ async function main() {
   const existing = await prisma.cycle.count();
   if (existing > 0) {
     console.log("في بيانات موجودة، ما رح أعمل seed.");
+    await seedPhase2(prisma);
     return;
   }
   await prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
@@ -426,7 +428,13 @@ async function main() {
     });
   }
 
+  // المؤشرات بكيان Metric (ADR-003)
+  const withKpi = await prisma.goal.findMany({ where: { kpiName: { not: null } } });
+  for (const g of withKpi)
+    await prisma.metric.create({ data: { goalId: g.id, name: g.kpiName!, unit: g.kpiUnit, start: g.kpiStart, target: g.kpiTarget, direction: g.kpiDirection ?? "UP" } });
+
   console.log("تمّ تحميل الخطة ✓");
+  await seedPhase2(prisma);
 }
 
 main()
