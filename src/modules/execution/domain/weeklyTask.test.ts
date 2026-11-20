@@ -75,3 +75,18 @@ describe("weekStart", () => {
   });
   it("clampProgress", () => expect([clampProgress(-5), clampProgress(55.6), clampProgress(130)]).toEqual([0, 56, 100]));
 });
+
+import { groupWeek, holdStatus, tapStatus } from "./weeklyTask";
+describe("groupWeek / tap / hold", () => {
+  it("كل مهمة بمجموعة وحدة", () => {
+    const g = groupWeek([
+      { id: 1, status: "IN_PROGRESS", cancelled: false },
+      { id: 2, status: "NOT_STARTED", cancelled: false },
+      { id: 3, status: "DONE", cancelled: false },
+      { id: 4, status: "DONE", cancelled: true },
+    ]);
+    expect([g.inProgress, g.todo, g.done, g.cancelled].map((x) => x.map((t) => t.id))).toEqual([[1], [2], [3], [4]]);
+  });
+  it("الكبسة بتخلّص وبترجّع", () => expect([tapStatus("NOT_STARTED"), tapStatus("IN_PROGRESS"), tapStatus("DONE")]).toEqual(["DONE", "DONE", "NOT_STARTED"]));
+  it("المطوّلة بتبدّل ماشية", () => expect([holdStatus("NOT_STARTED"), holdStatus("IN_PROGRESS")]).toEqual(["IN_PROGRESS", "NOT_STARTED"]));
+});

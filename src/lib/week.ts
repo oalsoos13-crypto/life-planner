@@ -84,6 +84,7 @@ export function toView(t: TaskWithRels, today: Ymd) {
     goalTitle: t.goal?.title ?? null,
     pillarName: t.goal?.pillar.name ?? null,
     color: t.goal?.pillar.color ?? null,
+    okrRank: t.goal?.kind === "OKR" ? t.goal.rank : null,
     notes: t.notes,
     progress: t.progress,
     imageData: t.imageData,

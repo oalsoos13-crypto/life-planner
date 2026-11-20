@@ -1,7 +1,7 @@
 import { prisma } from "./db";
 import { toDate, type Ymd } from "./dates";
 
-export type GoalOption = { id: string; title: string; pillar: string; color: string };
+export type GoalOption = { id: string; title: string; pillar: string; color: string; okrRank: number | null };
 
 // أهداف الدورة الي فيها هالأسبوع (أو آخر دورة إذا ما في)
 export async function goalOptions(ws?: Ymd): Promise<GoalOption[]> {
@@ -13,7 +13,7 @@ export async function goalOptions(ws?: Ymd): Promise<GoalOption[]> {
   const goals = await prisma.goal.findMany({
     where: { cycleId: cycle.id, archived: false },
     include: { pillar: true },
-    orderBy: [{ pillar: { order: "asc" } }, { order: "asc" }],
+    orderBy: [{ rank: { sort: "asc", nulls: "last" } }, { pillar: { order: "asc" } }, { order: "asc" }],
   });
-  return goals.map((g) => ({ id: g.id, title: g.title, pillar: g.pillar.name, color: g.pillar.color }));
+  return goals.map((g) => ({ id: g.id, title: g.title, pillar: g.pillar.name, color: g.pillar.color, okrRank: g.rank }));
 }
