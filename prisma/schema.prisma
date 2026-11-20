@@ -55,7 +55,7 @@ model Settings {
   weekStartDay        Int       @default(0) // 0 = الأحد
   timezone            String    @default("Asia/Kuwait")
   locale              String    @default("ar")
-  theme               String    @default("time") // time | system | light | dark (time: فاتح بالنهار، داكن بالليل)
+  theme               String    @default("dark") // time | system | light | dark (dark = فضاء ونجوم، light = سما الفجر)
   dayBlocks           Json? // أوقات الدوام الثابتة لخط اليوم: [{label, start, end, kind}]
   remindDaily         Boolean   @default(true)
   remindPlanThursday  Boolean   @default(true)

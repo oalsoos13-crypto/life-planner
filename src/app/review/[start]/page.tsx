@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { Galaxy } from "@/components/space/Planet";
 import { ReviewForm } from "@/components/ReviewForm";
 import { getDict } from "@/lib/i18n";
 import { prisma } from "@/lib/db";
@@ -33,7 +34,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ start: 
   ];
 
   return (
-    <Shell title={t.review}>
+    <Shell title={t.review} art={<div className="mt-2 -ml-10"><Galaxy id="rv-gx" w={260} h={180} /></div>}>
       <p className="-mt-2 mb-4 text-sm text-muted">{formatWeekRange(ws, settings.locale)}</p>
       <div className="space-y-3">
         <div className="card flex items-center justify-between p-4">

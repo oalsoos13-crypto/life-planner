@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { Planet } from "@/components/space/Planet";
 import { WeekList } from "@/components/week/WeekList";
 import { getDict } from "@/lib/i18n";
 import { addDays, formatWeekRange, isValidYmd, weekStartOf } from "@/lib/dates";
@@ -26,6 +27,7 @@ export default async function WeekPage({ params, searchParams }: { params: Promi
 
   return (
     <Shell
+      art={<div className="-mt-8 -ml-12"><Planet id="wk-p" r={48} light="#c9f3ff" base="#2c6fd6" band="#dff6ff" /></div>}
       title={label ?? range}
       subtitle={label ? range : undefined}
       action={

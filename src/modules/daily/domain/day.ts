@@ -57,6 +57,11 @@ export function hijriLabel(ymd: Ymd): string {
     .replace(/\s*هـ$/, "");
 }
 
+/** رقم اليوم بالشهر الهجري (لرسم الهلال) */
+export function hijriDay(ymd: Ymd): number {
+  return Number(new Intl.DateTimeFormat("en-u-ca-islamic-umalqura-nu-latn", { day: "numeric", timeZone: "UTC" }).format(toDate(ymd)));
+}
+
 /** أول يوم برمضان الجاي (أو اليوم إذا إحنا فيه)، بالتقويم الأم القرى */
 export function nextRamadan(today: Ymd): Ymd | null {
   const f = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", { month: "numeric", day: "numeric", timeZone: "UTC" });

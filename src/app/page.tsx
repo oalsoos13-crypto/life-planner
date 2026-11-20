@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Shell } from "@/components/Shell";
+import { Moon, Planet } from "@/components/space/Planet";
 import { NextStep } from "@/components/home/NextStep";
 import { Dot } from "@/components/ui/Dot";
 import { DayLine } from "@/components/today/DayLine";
@@ -12,7 +13,7 @@ import { ensureRecurrences, getContext, getWeekTasks, weekStats } from "@/lib/we
 import { pickNextStep } from "@/modules/execution";
 import { getStrategyView } from "@/modules/strategy/server";
 import { relativeDay, daysBetween } from "@/shared/kernel/relative";
-import { blocksForDay, fmtMinute, greeting as greet, hijriLabel, nextRamadan, nowInDay, parseBlocks } from "@/modules/daily";
+import { blocksForDay, fmtMinute, greeting as greet, hijriDay, hijriLabel, nextRamadan, nowInDay, parseBlocks } from "@/modules/daily";
 import { getKpiStrip, getToday } from "@/modules/daily/server";
 
 // «اليوم» (مخطط المنتج، محرك التنفيذ اليومي؛ دليل الواجهات §10.1):
@@ -73,11 +74,17 @@ export default async function Home() {
 
   return (
     <Shell
-      eyebrow={<>{formatDay(today, "ar", { weekday: "long", day: "numeric", month: "long" })} · {hijriLabel(today)}</>}
+      art={<div className="-mt-12 -ml-24"><Planet id="home-p" r={105} ring /></div>}
+      eyebrow={
+        <span className="flex items-center gap-2.5">
+          <Moon id="home-moon" r={13} day={hijriDay(today)} />
+          <span className="leading-snug">{formatDay(today, "ar", { weekday: "long", day: "numeric", month: "long" })}<br /><b className="font-semibold text-ink">{hijriLabel(today)}</b></span>
+        </span>
+      }
       title={<>{greet(hh)} <span className="gold-text">يا عمر</span></>}
       subtitle={
         <>
-          {toRamadan != null && toRamadan > 0 && <>باقي <b className="tnum text-gold">{toRamadan}</b> يوم لرمضان</>}
+          {toRamadan != null && toRamadan > 0 && <>باقي <b className="gold-text tnum">{toRamadan}</b> ليلة لهلال رمضان</>}
           {toRamadan === 0 && "رمضان كريم"}
           {cycleLine && <> · {cycleLine}</>}
         </>

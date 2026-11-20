@@ -3,14 +3,16 @@ import { useOptimistic, useState, useTransition } from "react";
 import { EditableText } from "@/components/ui/EditableText";
 import { Icon, HABIT_ICONS } from "@/components/ui/Icon";
 import { Sheet } from "@/components/ui/Sheet";
+import { Galaxy, sparklePath } from "@/components/space/Planet";
 import * as A from "@/app/today/actions";
 import type { TodayView } from "@/modules/daily/server";
 
 /** نيّة اليوم (الرواقيين: نية صبح بجملة). بتنكتب بكبسة وبتنحفظ لحالها */
 export function IntentCard({ intent }: { intent: string | null }) {
   return (
-    <section aria-labelledby="intent-h">
-      <h2 id="intent-h" className="eyebrow mb-1">نيّة اليوم</h2>
+    <section className="card relative overflow-hidden p-4" aria-labelledby="intent-h">
+      <Galaxy id="intent-gx" className="pointer-events-none absolute -top-6 -left-5 opacity-40" />
+      <h2 id="intent-h" className="eyebrow relative mb-1">نيّة اليوم</h2>
       <EditableText
         label="نيّة اليوم"
         value={intent}
@@ -18,7 +20,7 @@ export function IntentCard({ intent }: { intent: string | null }) {
         maxLength={140}
         multiline={false}
         onSave={(v) => A.saveIntent(v)}
-        className="font-display text-[23px] leading-[1.55]"
+        className="relative font-display text-[22px] leading-[1.55]"
       />
     </section>
   );
@@ -45,7 +47,7 @@ export function EnergyPicker({ energy }: { energy: number | null }) {
           role="radio"
           aria-checked={v === x.v}
           onClick={() => start(async () => { setV(x.v); await A.saveFeeling("energy", x.v); })}
-          className={`flex min-h-11 flex-col items-center justify-center rounded-xl text-[12.5px] transition ${v === x.v ? "bg-card font-bold text-accent shadow-[var(--shadow-sm)] dark:text-gold" : "text-muted"}`}
+          className={`flex min-h-11 flex-col items-center justify-center rounded-xl text-[12.5px] transition ${v === x.v ? "bg-card font-bold text-accent shadow-[var(--shadow-sm)] dark:text-[#b9f3ff]" : "text-muted"}`}
         >
           <span className="flex gap-0.5" aria-hidden>
             {Array.from({ length: 5 }, (_, i) => (
@@ -61,58 +63,86 @@ export function EnergyPicker({ energy }: { energy: number | null }) {
 
 type Habit = TodayView["habits"][number];
 
-/** العادات (Atomic Habits): دوائر كبيرة بكبسة، سلسلة الأيام، و«ما تفوّت مرتين» */
+// برج العادات: كل عادة نجمة بمكان ثابت (ارتفاع متغيّر بالصف) والخط بين نجمتين بيضوي لما الثنتين يخلصوا
+const ROW_H = 132;
+const OFFS = [22, 0, 34, 8];
+const COLS = 4;
+
+/** العادات (Atomic Habits) كبرج نجوم: كبسة = النجمة بتضوي، سلسلة الأيام، و«ما تفوّت مرتين» */
 export function Habits({ habits, pillars }: { habits: Habit[]; pillars: { id: string; name: string }[] }) {
   const [list, patch] = useOptimistic(habits, (cur: Habit[], p: { id: string; done: boolean }) =>
-    cur.map((h) => (h.id === p.id ? { ...h, done: p.done, streak: h.streak + (p.done ? 1 : -1) } : h)),
+    cur.map((h) => (h.id === p.id ? { ...h, done: p.done, streak: Math.max(0, h.streak + (p.done ? 1 : -1)) } : h)),
   );
   const [, start] = useTransition();
   const [adding, setAdding] = useState(false);
   const doneCount = list.filter((h) => h.done).length;
   const risk = list.find((h) => h.risk && !h.done);
+  const cells = list.length;
+  const rows = Math.ceil(cells / COLS);
+  // مركز كل نجمة بإحداثيات 0..100 أفقياً (يمين لشمال) وبالبكسل عمودياً
+  const pos = (i: number) => ({ x: 100 - ((i % COLS) + 0.5) * (100 / COLS), y: Math.floor(i / COLS) * ROW_H + OFFS[i % COLS] + 26 });
 
   return (
-    <section className="card p-4" aria-labelledby="hab-h">
+    <section className="card relative overflow-hidden p-4" aria-labelledby="hab-h">
       <div className="flex items-baseline justify-between">
-        <h2 id="hab-h" className="font-display text-[23px] font-bold">عاداتك</h2>
-        <span className="tnum text-[13px] text-muted"><bdi>{doneCount}</bdi> من <bdi>{list.length}</bdi></span>
+        <h2 id="hab-h" className="font-display text-[23px] font-bold">برج عاداتك</h2>
+        <span className="flex items-center gap-2">
+          <span className="tnum text-[13px] text-muted"><bdi>{doneCount}</bdi> من <bdi>{list.length}</bdi> نجوم</span>
+          <button type="button" onClick={() => setAdding(true)} className="btn btn-sm btn-text -me-2" aria-label="عادة جديدة"><Icon name="Plus" size={16} /> نجمة</button>
+        </span>
       </div>
-      {list.length === 0 && <p className="mt-2 text-[15px] text-muted">ما في عادات لسا. ابدأ بوحدة صغيرة كتير (قاعدة الدقيقتين).</p>}
-      <ul className="mt-3 grid grid-cols-4 gap-2">
-        {list.map((h) => (
-          <li key={h.id}>
-            <button
-              type="button"
-              aria-pressed={h.done}
-              onClick={() =>
-                start(async () => {
-                  patch({ id: h.id, done: !h.done });
-                  if (!h.done && "vibrate" in navigator) navigator.vibrate?.(10);
-                  await A.toggleHabit(h.id, !h.done);
-                })
-              }
-              className="flex w-full flex-col items-center gap-1.5"
-            >
-              <span
-                className={`flex h-14 w-14 items-center justify-center rounded-full border transition duration-200 ${
-                  h.done ? "border-accent bg-accent text-on-accent dark:border-transparent dark:[background:var(--gold-metal)]" : "border-gold-deco bg-surface-2 text-gold"
-                }`}
+      {list.length === 0 && <p className="mt-2 text-[15px] text-muted">ما في عادات لسا. ابدأ بوحدة صغيرة كتير (قاعدة الدقيقتين)، وكل وحدة رح تصير نجمة.</p>}
+      <div className="relative mt-3" style={{ height: rows * ROW_H }}>
+        <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 100 ${rows * ROW_H}`} preserveAspectRatio="none" aria-hidden>
+          {list.slice(0, -1).map((h, i) => {
+            if (Math.floor(i / COLS) !== Math.floor((i + 1) / COLS)) return null;
+            const a = pos(i);
+            const b = pos(i + 1);
+            const lit = h.done && list[i + 1].done;
+            return <line key={h.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={lit ? "var(--color-gold)" : "var(--color-field)"} strokeOpacity={lit ? 1 : 0.6} strokeWidth={lit ? 1.6 : 1} strokeDasharray={lit ? undefined : "3 5"} vectorEffect="non-scaling-stroke" />;
+          })}
+        </svg>
+        <ul className="relative grid grid-cols-4">
+          {list.map((h, i) => (
+            <li key={h.id} style={{ height: ROW_H, paddingTop: OFFS[i % COLS] }}>
+              <button
+                type="button"
+                aria-pressed={h.done}
+                aria-label={`${h.name}${h.done ? "، خلصت" : ""}`}
+                onClick={() =>
+                  start(async () => {
+                    patch({ id: h.id, done: !h.done });
+                    if (!h.done && "vibrate" in navigator) navigator.vibrate?.(10);
+                    await A.toggleHabit(h.id, !h.done);
+                  })
+                }
+                className="flex w-full flex-col items-center gap-1"
               >
-                <Icon name={h.done ? "Check" : h.icon} size={22} strokeWidth={h.done ? 2.6 : 1.8} />
-              </span>
-              <span className="text-[12.5px] leading-tight">{h.name}</span>
-              <span className="tnum text-[11.5px] text-muted">{h.streak > 0 ? `${h.streak} يوم` : " "}</span>
-            </button>
-          </li>
-        ))}
-        <li>
-          <button type="button" onClick={() => setAdding(true)} className="flex w-full flex-col items-center gap-1.5 text-muted" aria-label="عادة جديدة">
-            <span className="flex h-14 w-14 items-center justify-center rounded-full border border-dashed border-field"><Icon name="Plus" /></span>
-            <span className="text-[12.5px]">عادة</span>
-          </button>
-        </li>
-      </ul>
-      {risk && <p className="mt-3 rounded-xl bg-gold-soft px-3 py-2 text-[14px] text-gold">فوّت «{risk.name}» مبارح. اليوم لا تفوّتها مرتين، ولو دقيقتين.</p>}
+                <span className="relative flex h-[52px] w-[52px] items-center justify-center">
+                  {h.done ? (
+                    <svg viewBox="-26 -26 52 52" className="star-on h-[52px] w-[52px]" aria-hidden>
+                      <circle r="18" fill="var(--color-gold-deco)" opacity=".35" style={{ filter: "blur(6px)" }} />
+                      <path d={sparklePath(0, 0, 15)} fill="var(--star)" />
+                      <circle r="3" fill="var(--star)" />
+                    </svg>
+                  ) : (
+                    <span className="flex h-11 w-11 items-center justify-center rounded-full border border-field/70 text-muted">
+                      <Icon name={h.icon} size={18} strokeWidth={1.6} />
+                    </span>
+                  )}
+                </span>
+                <span className={`text-[12.5px] leading-tight ${h.done ? "font-bold" : "text-muted"}`}>{h.name}</span>
+                <span className="tnum text-[11.5px] text-gold">{h.streak > 0 ? `${h.streak} يوم` : "\u00a0"}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </div>
+      {risk ? (
+        <p className="mt-1 rounded-xl bg-gold-soft px-3 py-2 text-[14px] text-gold">فوّت «{risk.name}» مبارح. اليوم لا تفوّتها مرتين، ولو دقيقتين.</p>
+      ) : (
+        list.length > 0 && <p className="mt-1 text-[12.5px] text-muted">كل ما تكمّل عادة، نجمتها بتضوي وبينرسم خطها. يوم كامل = برج كامل ✦</p>
+      )}
       <Sheet open={adding} onClose={() => setAdding(false)} title="عادة جديدة">
         <NewHabit pillars={pillars} onDone={() => setAdding(false)} />
       </Sheet>
@@ -147,7 +177,7 @@ function NewHabit({ pillars, onDone }: { pillars: { id: string; name: string }[]
         <span className="mb-1 block text-[15px] font-bold">الأيقونة</span>
         <div className="grid grid-cols-5 gap-2">
           {HABIT_ICONS.map((i) => (
-            <button key={i} type="button" aria-pressed={icon === i} aria-label={i} onClick={() => setIcon(i)} className={`flex h-12 items-center justify-center rounded-xl border ${icon === i ? "border-accent bg-accent-soft text-accent dark:text-gold" : "border-line text-muted"}`}>
+            <button key={i} type="button" aria-pressed={icon === i} aria-label={i} onClick={() => setIcon(i)} className={`flex h-12 items-center justify-center rounded-xl border ${icon === i ? "border-accent bg-accent-soft text-accent dark:text-[#b9f3ff]" : "border-line text-muted"}`}>
               <Icon name={i} />
             </button>
           ))}

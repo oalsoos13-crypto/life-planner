@@ -121,8 +121,8 @@ export function CaptureSheet({ open, onClose }: { open: boolean; onClose: () => 
             disabled={!supported}
             aria-pressed={listening}
             aria-label={listening ? "وقّف التسجيل" : "ابدأ التسجيل"}
-            className={`relative flex h-28 w-28 items-center justify-center rounded-full text-on-accent transition disabled:opacity-40 ${listening ? "scale-105" : ""} bg-accent dark:[background:var(--gold-metal)]`}
-            style={listening ? { boxShadow: "0 0 0 10px color-mix(in srgb, var(--color-gold-deco) 25%, transparent), 0 0 60px color-mix(in srgb, var(--color-gold-deco) 50%, transparent)" } : undefined}
+            className={`orb relative flex h-28 w-28 items-center justify-center rounded-full transition disabled:opacity-40 ${listening ? "scale-105" : ""}`}
+            style={listening ? { boxShadow: "0 0 0 14px color-mix(in srgb, var(--color-gold-deco) 18%, transparent), 0 0 0 30px color-mix(in srgb, var(--color-gold-deco) 8%, transparent), 0 0 80px var(--glow)" } : undefined}
           >
             <Icon name={listening ? "Pause" : "Mic"} size={42} strokeWidth={1.8} />
           </button>

@@ -20,7 +20,7 @@ export function BottomNav() {
   return (
     <>
       <nav
-        className="fixed inset-x-3 z-30 mx-auto max-w-lg rounded-[28px] border border-line bg-card/90 shadow-[var(--shadow-lg)] backdrop-blur-xl dark:border-[rgb(212_169_79/0.22)] dark:bg-[rgb(14_24_22/0.85)]"
+        className="fixed inset-x-3 z-30 mx-auto max-w-lg rounded-[28px] border border-line bg-card/90 shadow-[var(--shadow-lg)] backdrop-blur-xl dark:border-[rgb(185_200_255/0.22)] dark:bg-[rgb(16_14_50/0.78)]"
         style={{ bottom: "calc(env(safe-area-inset-bottom) + 12px)" }}
         aria-label="التنقل"
       >
@@ -32,7 +32,7 @@ export function BottomNav() {
                   type="button"
                   onClick={() => setCapturing(true)}
                   aria-label="احكي أو اكتب: التقاط سريع"
-                  className="-mt-9 flex h-[66px] w-[66px] items-center justify-center rounded-full bg-accent text-on-accent shadow-[0_0_0_6px_var(--color-bg),var(--shadow-lg)] transition active:scale-95 dark:[background:var(--gold-metal)]"
+                  className="orb -mt-9 flex h-[66px] w-[66px] items-center justify-center rounded-full shadow-[0_0_0_6px_var(--color-bg),0_0_40px_var(--glow)] transition active:scale-95"
                 >
                   <Icon name="Mic" size={28} strokeWidth={2} />
                 </button>
@@ -50,7 +50,7 @@ export function BottomNav() {
 
 function NavLink({ href, label, icon, active }: { href: string; label: string; icon: string; active: boolean }) {
   return (
-    <Link href={href} aria-current={active ? "page" : undefined} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-bold text-accent dark:text-gold" : "text-muted"}`}>
+    <Link href={href} aria-current={active ? "page" : undefined} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] ${active ? "font-bold text-accent dark:text-[#b9f3ff]" : "text-muted"}`}>
       <Icon name={icon} size={23} strokeWidth={active ? 2.2 : 1.8} />
       {label}
     </Link>

@@ -22,8 +22,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   viewportFit: "cover",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f3ea" },
-    { media: "(prefers-color-scheme: dark)", color: "#060d0c" },
+    { media: "(prefers-color-scheme: light)", color: "#f4f2ff" },
+    { media: "(prefers-color-scheme: dark)", color: "#05061a" },
   ],
 };
 
@@ -32,7 +32,7 @@ export const dynamic = "force-dynamic";
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const s = await getSettings().catch(() => null);
   const locale = s?.locale ?? "ar";
-  const theme = s?.theme ?? "time";
+  const theme = s?.theme ?? "dark";
   const tz = s?.timezone ?? "Asia/Kuwait";
   const t = getDict(locale);
   // «حسب الوقت»: عاج بالنهار، مخمل وذهب من المغرب للفجر تقريباً (6م - 6ص بتوقيتك)
