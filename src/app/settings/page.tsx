@@ -15,6 +15,7 @@ export default async function SettingsPage() {
       <div className="space-y-4">
         <nav className="card divide-y divide-line" aria-label="أدوات">
           {[
+            { href: "/connect", title: "التواصل", sub: "واتساب، ومنشورات المجدّد" },
             { href: "/agent", title: "وكيلك على اللابتوب", sub: "تقارير Excel وإيميلات بموافقتك" },
             { href: "/me", title: "شو بعرف عنك", sub: "الملف الحي و«قديش بيعرفني»" },
           ].map((l) => (

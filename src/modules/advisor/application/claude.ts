@@ -118,3 +118,18 @@ export async function learnProfileWithClaude(input: { captures: string[]; known:
   if (res.stop_reason === "refusal") return null;
   return res.parsed_output ?? null;
 }
+
+/** كتابة قصيرة (مسودة رسالة، منشور، رد عميل). بيرجع null إذا رفض */
+export async function writeShort(system: string, prompt: string): Promise<string | null> {
+  const res = await getClient().beta.messages.create({
+    model: MODEL,
+    max_tokens: 4000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
+    output_config: { effort: "low" },
+    messages: [{ role: "user", content: prompt }],
+  });
+  if (res.stop_reason === "refusal") return null;
+  return res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n").trim() || null;
+}
