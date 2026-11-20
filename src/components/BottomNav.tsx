@@ -9,8 +9,8 @@ const items = [
   { href: "/", label: "اليوم", icon: "Sun" },
   { href: "/week", label: "الأسبوع", icon: "CalendarRange" },
   null, // زر الالتقاط بالنص، تحت الإبهام (Fitts)
-  { href: "/strategy", label: "الاستراتيجية", icon: "Compass" },
-  { href: "/settings", label: "الإعدادات", icon: "Settings2" },
+  { href: "/compass", label: "البوصلة", icon: "Compass" },
+  { href: "/strategy", label: "الاستراتيجية", icon: "Gauge" },
 ] as const;
 
 /** تنقل عائم بخمس أماكن وزر مايك بالنص (مخطط المنتج: الالتقاط من أي شاشة) */

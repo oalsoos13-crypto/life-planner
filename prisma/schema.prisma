@@ -83,6 +83,7 @@ model Cycle {
 model Pillar {
   id          String       @id @default(cuid())
   habits      Habit[]
+  wheel       WheelScore[]
   name        String
   color       String
   order       Int          @default(0)
@@ -441,4 +442,68 @@ model AdvisorMessage {
   createdAt DateTime @default(now())
 
   @@index([createdAt])
+}
+
+// ===== البوصلة (التوجيه): رؤية، رسالة، قيم، مبادئ، هوية (منهجية §1) =====
+model Compass {
+  id         Int      @id @default(1)
+  bhag       String? // الهدف الكبير الجريء (Collins)
+  picture3y  String? // صورة حياتي بعد 3 سنين
+  mission    String?
+  winning    String? // «الفوز إلي يعني…» (Playing to Win)
+  why        String? // بطاقة «ليش» (فرانكل)
+  eulogy     String? // تمرين يوم التأبين (Covey)
+  enough     Float? // رقم «كفاية» بالدينار بالشهر (Housel)
+  enoughNote String?
+  updatedAt  DateTime @updatedAt
+}
+
+model CompassItem {
+  id        String   @id @default(cuid())
+  kind      String // VALUE | PRINCIPLE | IDENTITY
+  text      String
+  detail    String? // للقيمة: تعريفها السلوكي
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([kind])
+}
+
+// ===== التشخيص: لوحة الحياة وSWOT (منهجية §2) =====
+model WheelScore {
+  date     DateTime @db.Date
+  pillarId String
+  pillar   Pillar   @relation(fields: [pillarId], references: [id], onDelete: Cascade)
+  score    Int
+  note     String?
+
+  @@id([date, pillarId])
+}
+
+model SwotItem {
+  id        String   @id @default(cuid())
+  kind      String // S | W | O | T
+  text      String
+  createdAt DateTime @default(now())
+}
+
+// ===== سجل القرارات (Kahneman، Dalio): خيارات، قاعدة 90%، Premortem، فحص تحيّزات، ومراجعة =====
+model Decision {
+  id          String    @id @default(cuid())
+  title       String
+  context     String?
+  options     Json // [{ text, score }]
+  chosen      String?
+  why         String?
+  premortem   String?
+  outsideView String?
+  biases      Json? // مفاتيح التحيّزات الي انفحصت
+  reviewAt    DateTime? @db.Date
+  outcome     String?
+  lesson      String?
+  status      String    @default("OPEN") // OPEN | DECIDED | REVIEWED
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([status])
 }
