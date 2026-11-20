@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { RestoreButton } from "@/components/RestoreButton";
 import { Shell } from "@/components/Shell";
 import { Planet } from "@/components/space/Planet";
@@ -12,6 +13,17 @@ export default async function SettingsPage() {
   return (
     <Shell title={t.settings} art={<div className="-mt-4 -ml-8"><Planet id="st-p" r={46} light="#ffe2c4" base="#c46bff" band="#ffd1f0" /></div>}>
       <div className="space-y-4">
+        <nav className="card divide-y divide-line" aria-label="أدوات">
+          {[
+            { href: "/agent", title: "وكيلك على اللابتوب", sub: "تقارير Excel وإيميلات بموافقتك" },
+            { href: "/me", title: "شو بعرف عنك", sub: "الملف الحي و«قديش بيعرفني»" },
+          ].map((l) => (
+            <Link key={l.href} href={l.href} className="flex items-center gap-3 p-4 active:bg-surface-2">
+              <span className="min-w-0 flex-1"><span className="block font-bold">{l.title}</span><span className="block text-[14px] text-muted">{l.sub}</span></span>
+              <span className="text-muted" aria-hidden>‹</span>
+            </Link>
+          ))}
+        </nav>
         <SettingsForm weekStartDay={settings.weekStartDay} locale={settings.locale} theme={settings.theme} />
         <section className="card space-y-3 p-4">
           <h2 className="font-bold">{t.export}</h2>

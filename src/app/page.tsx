@@ -18,6 +18,7 @@ import { getKpiStrip, getToday } from "@/modules/daily/server";
 import { advisorConnected, getTodayLog } from "@/modules/advisor/server";
 import { CaptureLog } from "@/components/advisor/CaptureLog";
 import { getKnowScore } from "@/modules/profile/server";
+import { pendingApprovals } from "@/modules/agent/server";
 
 // «اليوم» (مخطط المنتج، محرك التنفيذ اليومي؛ دليل الواجهات §10.1):
 // النية ← الخطوة الجاية بوقتها ← يومك ← الطاقة والعادات ← أرقام الربع ← مراجعة المسا.
@@ -54,7 +55,7 @@ export default async function Home() {
     getTodayLog(today),
     prisma.pillar.findMany({ where: { archived: false }, orderBy: { order: "asc" }, select: { id: true, name: true } }),
   ]);
-  const [kpis, know] = await Promise.all([strategy ? getKpiStrip(strategy.cycle.id) : [], getKnowScore(today)]);
+  const [kpis, know, approvals] = await Promise.all([strategy ? getKpiStrip(strategy.cycle.id) : [], getKnowScore(today), pendingApprovals()]);
   const stats = weekStats(tasks, today);
   const rankOf = new Map(strategy?.okrs.map((o) => [o.id, o.rank]) ?? []);
   const candidates = (list: typeof tasks) =>
@@ -95,6 +96,16 @@ export default async function Home() {
       }
     >
       <div className="space-y-6">
+        {approvals > 0 && (
+          <Link href="/agent" className="card flex items-center gap-3 border-gold p-4 active:bg-surface-2">
+            <span className="orb flex h-11 w-11 shrink-0 items-center justify-center rounded-full" aria-hidden>✦</span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-bold">الوكيل جهّز <bdi className="tnum">{approvals}</bdi> {approvals === 1 ? "شغلة" : "أشياء"}</span>
+              <span className="block text-[14px] text-muted">بيستنى موافقتك قبل ما يبعت</span>
+            </span>
+            <span className="text-muted" aria-hidden>‹</span>
+          </Link>
+        )}
         <IntentCard intent={day.intent} />
         <NextStep
           when={when}

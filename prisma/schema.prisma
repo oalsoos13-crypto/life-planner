@@ -64,6 +64,7 @@ model Settings {
   lastAutomationDate  DateTime? @db.Date // آخر يوم اشتغلت فيه الأتمتة (المرحلة 3)
   updatedAt           DateTime  @updatedAt
   profileLearnedAt    DateTime?
+  agentSeenAt         DateTime?
 }
 
 // ===== الاستراتيجية =====
@@ -535,4 +536,24 @@ model Person {
   source      String    @default("ME") // ME | CLAUDE
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+}
+
+// ── الوكيل على اللابتوب (Stage 5): طابور مهام. الملفات والأرقام بتضل على اللابتوب؛ هون عنوان وحالة وملخّص بدون أرقام ──
+model AgentJob {
+  id           String    @id @default(cuid())
+  kind         String // EXCEL_REPORT | EMAIL | OTHER
+  title        String
+  instructions String
+  folder       String? // اسم المجلد على اللابتوب (مش محتواه)
+  status       String    @default("QUEUED") // QUEUED | RUNNING | NEEDS_APPROVAL | APPROVED | SENDING | DONE | FAILED | CANCELLED
+  standing     Boolean   @default(false) // إذن دائم: بيبعت بدون ما يستنى
+  repeatDay    Int? // تقرير أسبوعي: يوم الأسبوع 0..6
+  summary      String? // ملخّص قصير بدون أرقام الشركة
+  nextRunAt    DateTime?
+  claimedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status])
 }
